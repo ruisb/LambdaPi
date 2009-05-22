@@ -14,16 +14,16 @@ vfree_ :: Name -> Value_
 vfree_ n = VNeutral_ (NFree_ n)
 
 cEval_ :: CTerm_ -> (NameEnv Value_,Env_) -> Value_
-cEval_ (Inf_  ii)    d  =  iEval_ ii d
-cEval_ (Lam_ vn c)    d  =  VLam_ vn (\ x -> cEval_ c (((\(e, d) -> (e,  (x : d))) d)))
-cEval_ Zero_      d  = VZero_
-cEval_ (Succ_ k)  d  = VSucc_ (cEval_ k d)
-cEval_ (Nil_ a)          d  =  VNil_ (cEval_ a d)
-cEval_ (Cons_ a n x xs)  d  =  VCons_  (cEval_ a d) (cEval_ n d)
-                                       (cEval_ x d) (cEval_ xs d)
-cEval_ (Refl_ a x)       d  =  VRefl_ (cEval_ a d) (cEval_ x d)
-cEval_ (FZero_ n)    d  =  VFZero_ (cEval_ n d)
-cEval_ (FSucc_ n f)  d  =  VFSucc_ (cEval_ n d) (cEval_ f d)
+cEval_ (Inf_  ii)        d  = iEval_ ii d
+cEval_ (Lam_ vn c)       d  = VLam_ vn (\ x -> cEval_ c (((\(e, d) -> (e,  (x : d))) d)))
+cEval_ Zero_             d  = VZero_
+cEval_ (Succ_ k)         d  = VSucc_ (cEval_ k d)
+cEval_ (Nil_ a)          d  = VNil_  (cEval_ a d)
+cEval_ (Cons_ a n x xs)  d  = VCons_ (cEval_ a d) (cEval_ n d)
+                                     (cEval_ x d) (cEval_ xs d)
+cEval_ (Refl_ a x)       d  = VRefl_ (cEval_ a d) (cEval_ x d)
+cEval_ (FZero_ n)        d  = VFZero_ (cEval_ n d)
+cEval_ (FSucc_ n f)      d  = VFSucc_ (cEval_ n d) (cEval_ f d)
 
 iEval_ :: ITerm_ -> (NameEnv Value_,Env_) -> Value_
 iEval_ (Ann_  c _)       d  =  cEval_ c d
