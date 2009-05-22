@@ -6,309 +6,307 @@ import LambdaPi.Printer
 import Control.Monad.Error
 import Text.PrettyPrint.HughesPJ hiding (parens)
 
-vapp_ :: Value_ -> Value_ -> Value_
-vapp_ (VLam_ _ f)    v  =  f v
-vapp_ (VNeutral_ n)  v  =  VNeutral_ (NApp_ n v)
+vapp :: Value -> Value -> Value
+vapp (VLam _ f)    v  =  f v
+vapp (VNeutral n)  v  =  VNeutral (NApp n v)
 
-vfree_ :: Name -> Value_
-vfree_ n = VNeutral_ (NFree_ n)
+vfree :: Name -> Value
+vfree n = VNeutral (NFree n)
 
-cEval_ :: CTerm_ -> (NameEnv Value_,Env_) -> Value_
-cEval_ (Inf_  ii)        d  = iEval_ ii d
-cEval_ (Lam_ vn c)       d  = VLam_ vn (\ x -> cEval_ c (((\(e, d) -> (e,  (x : d))) d)))
-cEval_ Zero_             d  = VZero_
-cEval_ (Succ_ k)         d  = VSucc_ (cEval_ k d)
-cEval_ (Nil_ a)          d  = VNil_  (cEval_ a d)
-cEval_ (Cons_ a n x xs)  d  = VCons_ (cEval_ a d) (cEval_ n d)
-                                     (cEval_ x d) (cEval_ xs d)
-cEval_ (Refl_ a x)       d  = VRefl_ (cEval_ a d) (cEval_ x d)
-cEval_ (FZero_ n)        d  = VFZero_ (cEval_ n d)
-cEval_ (FSucc_ n f)      d  = VFSucc_ (cEval_ n d) (cEval_ f d)
+cEval :: CTerm -> (NameEnv Value,Env) -> Value
+cEval (Inf  ii)        d = iEval ii d
+cEval (Lam vn c)       d = VLam vn (\ x -> 
+                               cEval c (((\(e, d) -> (e,  (x : d))) d)))
+cEval Zero             d = VZero
+cEval (Succ k)         d = VSucc (cEval k d)
+cEval (Nil a)          d = VNil  (cEval a d)
+cEval (Cons a n x xs)  d = VCons (cEval a d) (cEval n d)
+                                    (cEval x d) (cEval xs d)
+cEval (Refl a x)       d = VRefl (cEval a d) (cEval x d)
+cEval (FZero n)        d = VFZero (cEval n d)
+cEval (FSucc n f)      d = VFSucc (cEval n d) (cEval f d)
 
-iEval_ :: ITerm_ -> (NameEnv Value_,Env_) -> Value_
-iEval_ (Ann_  c _)       d  =  cEval_ c d
-iEval_ Star_           d  =  VStar_   
-iEval_ (Pi_ vn ty ty') d  =  VPi_ vn (cEval_ ty d) (\ x -> cEval_ ty' (((\(e, d) -> (e,  (x : d))) d)))
-iEval_ (Free_  x)      d  =  case lookup x (fst d) of Nothing ->  (vfree_ x); Just v -> v 
-iEval_ (Bound_  ii _)  d  =  (snd d) !! ii
-iEval_ (i :$: c)       d  =  vapp_ (iEval_ i d) (cEval_ c d)
-iEval_ Nat_                  d  =  VNat_
-iEval_ (NatElim_ m mz ms n)  d 
-  =  let  mzVal = cEval_ mz d
-          msVal = cEval_ ms d
+iEval :: ITerm -> (NameEnv Value,Env) -> Value
+iEval (Ann c _)        d  =  cEval c d
+iEval Star             d  =  VStar   
+iEval (Pi vn ty ty')   d  =  VPi vn (cEval ty d) (\ x -> 
+                                 cEval ty' (((\(e, d) -> (e,  (x : d))) d)))
+iEval (Free  x)        d  =  case lookup x (fst d) of 
+                                 Nothing ->  (vfree x)
+                                 Just v -> v 
+iEval (Bound  ii _)      d  =  (snd d) !! ii
+iEval (i :$: c)         d  =  vapp (iEval i d) (cEval c d)
+iEval Nat                  d  =  VNat
+iEval (NatElim m mz ms n)  d 
+  =  let  mzVal = cEval mz d
+          msVal = cEval ms d
           rec nVal =
             case nVal of
-              VZero_       ->  mzVal
-              VSucc_ k     ->  msVal `vapp_` k `vapp_` rec k
-              VNeutral_ n  ->  VNeutral_
-                               (NNatElim_ (cEval_ m d) mzVal msVal n)
-              _            ->  error "internal: eval natElim"
-     in   rec (cEval_ n d)
-iEval_ (Vec_ a n)                 d  =  VVec_ (cEval_ a d) (cEval_ n d)
-iEval_ (VecElim_ a m mn mc n xs)  d  =
-  let  mnVal  =  cEval_ mn d
-       mcVal  =  cEval_ mc d
+              VZero       ->  mzVal
+              VSucc k     ->  msVal `vapp` k `vapp` rec k
+              VNeutral n  ->  VNeutral
+                               (NNatElim (cEval m d) mzVal msVal n)
+              _           ->  error "internal: eval natElim"
+     in   rec (cEval n d)
+iEval (Vec a n)                 d  =  VVec (cEval a d) (cEval n d)
+iEval (VecElim a m mn mc n xs)  d  =
+  let  mnVal  =  cEval mn d
+       mcVal  =  cEval mc d
        rec nVal xsVal =
          case xsVal of
-           VNil_ _          ->  mnVal
-           VCons_ _ k x xs  ->  foldl vapp_ mcVal [k, x, xs, rec k xs]
-           VNeutral_ n      ->  VNeutral_
-                                (NVecElim_  (cEval_ a d) (cEval_ m d)
+           VNil  _          ->  mnVal
+           VCons  k x xs _  ->  foldl vapp mcVal [k, x, xs, rec k xs]
+           VNeutral n       ->  VNeutral
+                                (NVecElim  (cEval a d) (cEval m d)
                                             mnVal mcVal nVal n)
-           _                ->  error "internal: eval vecElim"
-  in   rec (cEval_ n d) (cEval_ xs d)
-iEval_ (Eq_ a x y)                d  =  VEq_ (cEval_ a d) (cEval_ x d) (cEval_ y d)
-iEval_ (EqElim_ a m mr x y eq)    d  =
-  let  mrVal  =  cEval_ mr d
+           _              ->  error "internal: eval vecElim"
+  in   rec (cEval n d) (cEval xs d)
+iEval (Eq a x y)                d  =  VEq (cEval a d) (cEval x d) (cEval y d)
+iEval (EqElim a m mr x y eq)    d  =
+  let  mrVal  =  cEval mr d
        rec eqVal =
          case eqVal of
-           VRefl_ _ z -> mrVal `vapp_` z
-           VNeutral_ n ->  
-             VNeutral_ (NEqElim_  (cEval_ a d) (cEval_ m d) mrVal
-                                  (cEval_ x d) (cEval_ y d) n)
+           VRefl _ z -> mrVal `vapp` z
+           VNeutral n ->  
+             VNeutral (NEqElim  (cEval a d) (cEval m d) mrVal
+                                  (cEval x d) (cEval y d) n)
            _ -> error "internal: eval eqElim"
-  in   rec (cEval_ eq d)
-iEval_ (Fin_ n)                d  =  VFin_ (cEval_ n d)
-iEval_ (FinElim_ m mz ms n f)  d  =
-  let  mzVal  =  cEval_ mz d
-       msVal  =  cEval_ ms d
+  in   rec (cEval eq d)
+iEval (Fin n)                d  =  VFin (cEval n d)
+iEval (FinElim m mz ms n f)  d  =
+  let  mzVal  =  cEval mz d
+       msVal  =  cEval ms d
        rec fVal =
          case fVal of
-           VFZero_ k        ->  mzVal `vapp_` k
-           VFSucc_ k g      ->  foldl vapp_ msVal [k, g, rec g]
-           VNeutral_ n'     ->  VNeutral_
-                                (NFinElim_  (cEval_ m d) (cEval_ mz d)
-                                            (cEval_ ms d) (cEval_ n d) n')
-           _                ->  error "internal: eval finElim"
-  in   rec (cEval_ f d)
+           VFZero k        ->  mzVal `vapp` k
+           VFSucc k g      ->  foldl vapp msVal [k, g, rec g]
+           VNeutral n'     ->  VNeutral
+                                (NFinElim  (cEval m d) (cEval mz d)
+                                            (cEval ms d) (cEval n d) n')
+           _               ->  error "internal: eval finElim"
+  in   rec (cEval f d)
 
-iSubst_ :: Int -> ITerm_ -> ITerm_ -> ITerm_
-iSubst_ ii i'   (Ann_ c c')     =  Ann_ (cSubst_ ii i' c) (cSubst_ ii i' c')
-iSubst_ ii r  Star_           =  Star_  
-iSubst_ ii r  (Pi_ vn ty ty') =  Pi_ vn (cSubst_ ii r ty) (cSubst_ (ii + 1) r ty')
-iSubst_ ii i' (Bound_ j vn)   =  if ii == j then i' else Bound_ j vn
-iSubst_ ii i' (Free_ y)       =  Free_ y
-iSubst_ ii i' (i :$: c)       =  iSubst_ ii i' i :$: cSubst_ ii i' c
-iSubst_ ii r  Nat_            =  Nat_
-iSubst_ ii r  (NatElim_ m mz ms n)
-                              =  NatElim_ (cSubst_ ii r m)
-                                          (cSubst_ ii r mz) (cSubst_ ii r ms)
-                                          (cSubst_ ii r ms)
-iSubst_ ii r  (Vec_ a n)      =  Vec_ (cSubst_ ii r a) (cSubst_ ii r n)
-iSubst_ ii r  (VecElim_ a m mn mc n xs)
-                              =  VecElim_ (cSubst_ ii r a) (cSubst_ ii r m)
-                                          (cSubst_ ii r mn) (cSubst_ ii r mc)
-                                          (cSubst_ ii r n) (cSubst_ ii r xs)
-iSubst_ ii r  (Eq_ a x y)     =  Eq_ (cSubst_ ii r a)
-                                     (cSubst_ ii r x) (cSubst_ ii r y)
-iSubst_ ii r  (EqElim_ a m mr x y eq)
-                              =  VecElim_ (cSubst_ ii r a) (cSubst_ ii r m)
-                                          (cSubst_ ii r mr) (cSubst_ ii r x)
-                                          (cSubst_ ii r y) (cSubst_ ii r eq)
-iSubst_ ii r  (Fin_ n)        =  Fin_ (cSubst_ ii r n)
-iSubst_ ii r  (FinElim_ m mz ms n f)
-                              =  FinElim_ (cSubst_ ii r m)
-                                          (cSubst_ ii r mz) (cSubst_ ii r ms)
-                                          (cSubst_ ii r n) (cSubst_ ii r f)
+iSubst :: Int -> ITerm -> ITerm -> ITerm
+iSubst ii i'   (Ann c c')     =  Ann (cSubst ii i' c) (cSubst ii i' c')
+iSubst ii r  Star           =  Star  
+iSubst ii r  (Pi vn ty ty') =  Pi vn (cSubst ii r ty) (cSubst (ii + 1) r ty')
+iSubst ii i' (Bound j vn)   =  if ii == j then i' else Bound j vn
+iSubst ii i' (Free y)       =  Free y
+iSubst ii i' (i :$: c)       =  iSubst ii i' i :$: cSubst ii i' c
+iSubst ii r  Nat            =  Nat
+iSubst ii r  (NatElim m mz ms n)
+                              =  NatElim (cSubst ii r m)
+                                          (cSubst ii r mz) (cSubst ii r ms)
+                                          (cSubst ii r ms)
+iSubst ii r  (Vec a n)      =  Vec (cSubst ii r a) (cSubst ii r n)
+iSubst ii r  (VecElim a m mn mc n xs)
+                              =  VecElim (cSubst ii r a) (cSubst ii r m)
+                                          (cSubst ii r mn) (cSubst ii r mc)
+                                          (cSubst ii r n) (cSubst ii r xs)
+iSubst ii r  (Eq a x y)     =  Eq (cSubst ii r a)
+                                     (cSubst ii r x) (cSubst ii r y)
+iSubst ii r  (EqElim a m mr x y eq)
+                              =  VecElim (cSubst ii r a) (cSubst ii r m)
+                                          (cSubst ii r mr) (cSubst ii r x)
+                                          (cSubst ii r y) (cSubst ii r eq)
+iSubst ii r  (Fin n)        =  Fin (cSubst ii r n)
+iSubst ii r  (FinElim m mz ms n f)
+                              =  FinElim (cSubst ii r m)
+                                          (cSubst ii r mz) (cSubst ii r ms)
+                                          (cSubst ii r n) (cSubst ii r f)
                                           
-cSubst_ :: Int -> ITerm_ -> CTerm_ -> CTerm_
-cSubst_ ii i' (Inf_ i)      =  Inf_ (iSubst_ ii i' i)
-cSubst_ ii i' (Lam_ vn c)   =  Lam_ vn (cSubst_ (ii + 1) i' c)
+cSubst :: Int -> ITerm -> CTerm -> CTerm
+cSubst ii i' (Inf i)      =  Inf (iSubst ii i' i)
+cSubst ii i' (Lam vn c)   =  Lam vn (cSubst (ii + 1) i' c)
 -- PROBLEM:CAPTURE?
 
-cSubst_ ii r  Zero_         =  Zero_
-cSubst_ ii r  (Succ_ n)     =  Succ_ (cSubst_ ii r n)
-cSubst_ ii r  (Nil_ a)      =  Nil_ (cSubst_ ii r a)
-cSubst_ ii r  (Cons_ a n x xs)
-                            =  Cons_ (cSubst_ ii r a) (cSubst_ ii r x)
-                                     (cSubst_ ii r x) (cSubst_ ii r xs)
-cSubst_ ii r  (Refl_ a x)   =  Refl_ (cSubst_ ii r a) (cSubst_ ii r x)
-cSubst_ ii r  (FZero_ n)    =  FZero_ (cSubst_ ii r n)
-cSubst_ ii r  (FSucc_ n k)  =  FSucc_ (cSubst_ ii r n) (cSubst_ ii r k)
+cSubst ii r  Zero         =  Zero
+cSubst ii r  (Succ n)     =  Succ (cSubst ii r n)
+cSubst ii r  (Nil a)      =  Nil (cSubst ii r a)
+cSubst ii r  (Cons a n x xs)
+                            =  Cons (cSubst ii r a) (cSubst ii r x)
+                                     (cSubst ii r x) (cSubst ii r xs)
+cSubst ii r  (Refl a x)   =  Refl (cSubst ii r a) (cSubst ii r x)
+cSubst ii r  (FZero n)    =  FZero (cSubst ii r n)
+cSubst ii r  (FSucc n k)  =  FSucc (cSubst ii r n) (cSubst ii r k)
 
-quote_ :: Int -> Value_ -> CTerm_
-quote_ ii (VLam_ vn t)
-  =     Lam_ vn (quote_ (ii + 1) (t (vfree_ (Quote ii vn))))
-quote_ ii VStar_ = Inf_ Star_ 
-quote_ ii (VPi_ vn v f)                                       
-    =  Inf_ (Pi_ vn (quote_ ii v) (quote_ (ii + 1) (f (vfree_ (Quote ii vn )))))  
-quote_ ii (VNeutral_ n)
-  =     Inf_ (neutralQuote_ ii n)
-quote_ ii VNat_       =  Inf_ Nat_
-quote_ ii VZero_      =  Zero_
-quote_ ii (VSucc_ n)  =  Succ_ (quote_ ii n)
-quote_ ii (VVec_ a n)         =  Inf_ (Vec_ (quote_ ii a) (quote_ ii n))
-quote_ ii (VNil_ a)           =  Nil_ (quote_ ii a)
-quote_ ii (VCons_ a n x xs)   =  Cons_  (quote_ ii a) (quote_ ii n)
-                                        (quote_ ii x) (quote_ ii xs)
-quote_ ii (VEq_ a x y)  =  Inf_ (Eq_ (quote_ ii a) (quote_ ii x) (quote_ ii y))
-quote_ ii (VRefl_ a x)  =  Refl_ (quote_ ii a) (quote_ ii x)
-quote_ ii (VFin_ n)           =  Inf_ (Fin_ (quote_ ii n))
-quote_ ii (VFZero_ n)         =  FZero_ (quote_ ii n)
-quote_ ii (VFSucc_ n f)       =  FSucc_  (quote_ ii n) (quote_ ii f)
+quote :: Int -> Value -> CTerm
+quote ii (VLam vn t)
+  =     Lam vn (quote (ii + 1) (t (vfree (Quote ii vn))))
+quote ii VStar = Inf Star 
+quote ii (VPi vn v f)                                       
+    =  Inf (Pi vn (quote ii v) (quote (ii + 1) (f (vfree (Quote ii vn )))))  
+quote ii (VNeutral n)
+  =     Inf (neutralQuote ii n)
+quote ii VNat       =  Inf Nat
+quote ii VZero      =  Zero
+quote ii (VSucc n)  =  Succ (quote ii n)
+quote ii (VVec a n)         =  Inf (Vec (quote ii a) (quote ii n))
+quote ii (VNil a)           =  Nil (quote ii a)
+quote ii (VCons a n x xs)   =  Cons  (quote ii a) (quote ii n)
+                                        (quote ii x) (quote ii xs)
+quote ii (VEq a x y)  =  Inf (Eq (quote ii a) (quote ii x) (quote ii y))
+quote ii (VRefl a x)  =  Refl (quote ii a) (quote ii x)
+quote ii (VFin n)           =  Inf (Fin (quote ii n))
+quote ii (VFZero n)         =  FZero (quote ii n)
+quote ii (VFSucc n f)       =  FSucc  (quote ii n) (quote ii f)
 
-neutralQuote_ :: Int -> Neutral_ -> ITerm_
-neutralQuote_ ii (NFree_ v)
-   =  boundfree_ ii v
-neutralQuote_ ii (NApp_ n v)
-   =  neutralQuote_ ii n :$: quote_ ii v
-neutralQuote_ ii (NNatElim_ m z s n)
-   =  NatElim_ (quote_ ii m) (quote_ ii z) (quote_ ii s) (Inf_ (neutralQuote_ ii n))
-neutralQuote_ ii (NVecElim_ a m mn mc n xs)
-   =  VecElim_ (quote_ ii a) (quote_ ii m)
-               (quote_ ii mn) (quote_ ii mc)
-               (quote_ ii n) (Inf_ (neutralQuote_ ii xs))
-neutralQuote_ ii (NEqElim_ a m mr x y eq)
-   =  EqElim_  (quote_ ii a) (quote_ ii m) (quote_ ii mr)
-               (quote_ ii x) (quote_ ii y)
-               (Inf_ (neutralQuote_ ii eq))
-neutralQuote_ ii (NFinElim_ m mz ms n f)
-   =  FinElim_ (quote_ ii m)
-               (quote_ ii mz) (quote_ ii ms)
-               (quote_ ii n) (Inf_ (neutralQuote_ ii f))
+neutralQuote :: Int -> Neutral -> ITerm
+neutralQuote ii (NFree v)
+   =  boundfree ii v
+neutralQuote ii (NApp n v)
+   =  neutralQuote ii n :$: quote ii v
+neutralQuote ii (NNatElim m z s n)
+   =  NatElim (quote ii m) (quote ii z) (quote ii s) (Inf (neutralQuote ii n))
+neutralQuote ii (NVecElim a m mn mc n xs)
+   =  VecElim (quote ii a) (quote ii m)
+               (quote ii mn) (quote ii mc)
+               (quote ii n) (Inf (neutralQuote ii xs))
+neutralQuote ii (NEqElim a m mr x y eq)
+   =  EqElim  (quote ii a) (quote ii m) (quote ii mr)
+               (quote ii x) (quote ii y)
+               (Inf (neutralQuote ii eq))
+neutralQuote ii (NFinElim m mz ms n f)
+   =  FinElim (quote ii m)
+               (quote ii mz) (quote ii ms)
+               (quote ii n) (Inf (neutralQuote ii f))
 
-boundfree_ :: Int -> Name -> ITerm_
-boundfree_ ii (Quote k vn)  =  Bound_ ((ii - k - 1) `max` 0) vn
-boundfree_ ii x             =  Free_ x
+boundfree :: Int -> Name -> ITerm
+boundfree ii (Quote k vn)  =  Bound ((ii - k - 1) `max` 0) vn
+boundfree ii x             =  Free x
 
-instance Show Value_ where
-  show = show . quote0_
+instance Show Value where
+  show = show . quote0
 
 
-type Type_     =  Value_  
-type Context_    =  [(Name, Type_)]
+type Type     =  Value  
+type Context    =  [(Name, Type)]
 
-quote0_ :: Value_ -> CTerm_
-quote0_ = quote_ 0 
+quote0 :: Value -> CTerm
+quote0 = quote 0 
 
-iType0_ :: (NameEnv Value_,Context_) -> ITerm_ -> Result Type_
-iType0_ = iType_ 0
+iType0 :: (NameEnv Value,Context) -> ITerm -> Result Type
+iType0 = iType 0
 
-iType_ :: Int -> (NameEnv Value_,Context_) -> ITerm_ -> Result Type_
-iType_ ii g (Ann_ e tyt )
-  =     do  cType_  ii g tyt VStar_
-            let ty = cEval_ tyt (fst g, [])  
-            cType_ ii g e ty
+iType :: Int -> (NameEnv Value,Context) -> ITerm -> Result Type
+iType ii g (Ann e tyt )
+  =     do  cType  ii g tyt VStar
+            let ty = cEval tyt (fst g, [])  
+            cType ii g e ty
             return ty
-iType_ ii g Star_   
-   =  return VStar_   
-iType_ ii g (Pi_ vn tyt tyt')  
-   =  do  cType_ ii g tyt VStar_    
-          let ty = cEval_ tyt (fst g, [])  
-          cType_  (ii + 1) ((\ (d,g) -> (d,  ((Local ii vn, ty) : g))) g)  
-                    (cSubst_ 0 (Free_ (Local ii vn)) tyt') VStar_  
-          return VStar_   
-iType_ ii g (Free_ x)
+iType ii g Star   
+   =  return VStar   
+iType ii g (Pi vn tyt tyt')  
+   =  do  cType ii g tyt VStar    
+          let ty = cEval tyt (fst g, [])  
+          cType  (ii + 1) ((\ (d,g) -> (d,  ((Local ii vn, ty) : g))) g)  
+                    (cSubst 0 (Free (Local ii vn)) tyt') VStar  
+          return VStar   
+iType ii g (Free x)
   =     case lookup x (snd g) of
           Just ty        ->  return ty
-          Nothing        ->  throwError ("unknown identifier: " ++ render (iPrint_ 0 0 (Free_ x)))
-iType_ ii g (e1 :$: e2)
-  =     do  si <- iType_ ii g e1
+          Nothing        ->  throwError ("unknown identifier: " ++ render (iPrint 0 0 (Free x)))
+iType ii g (e1 :$: e2)
+  =     do  si <- iType ii g e1
             case si of
-              VPi_ _ ty ty'  ->  do  cType_ ii g e2 ty
-                                     return ( ty' (cEval_ e2 (fst g, [])))
-              _                  ->  throwError "illegal application"
+              VPi _ ty ty'  ->  do  cType ii g e2 ty
+                                    return ( ty' (cEval e2 (fst g, [])))
+              _                ->  throwError "illegal application"
 
-iType_ ii g Nat_                  =  return VStar_
-iType_ ii g (NatElim_ m mz ms n)  =
-  do  cType_ ii g m (VPi_ "pix" VNat_ (const VStar_))
-      let mVal  = cEval_ m (fst g, []) 
-      cType_ ii g mz (mVal `vapp_` VZero_)
-      cType_ ii g ms (VPi_ "piy" VNat_ (\ k -> VPi_ "piz" (mVal `vapp_` k) (\ _ -> mVal `vapp_` VSucc_ k)))
-      cType_ ii g n VNat_
-      let nVal = cEval_ n (fst g, [])
-      return (mVal `vapp_` nVal)
-iType_ ii g (Vec_ a n) =
-  do  cType_ ii g a  VStar_
-      cType_ ii g n  VNat_
-      return VStar_
-iType_ ii g (VecElim_ a m mn mc n vs) =
-  do  cType_ ii g a VStar_
-      let aVal = cEval_ a (fst g, [])
-      cType_ ii g m
-        (  VPi_ "" VNat_ (\n -> VPi_ "" (VVec_ aVal n) (\ _ -> VStar_)))
-      let mVal = cEval_ m (fst g, [])
-      cType_ ii g mn (foldl vapp_ mVal [VZero_, VNil_ aVal])
-      cType_ ii g mc
-        (  VPi_ "" VNat_ (\ n -> 
-           VPi_ "" aVal (\ y -> 
-           VPi_ "" (VVec_ aVal n) (\ ys ->
-           VPi_ "" (foldl vapp_ mVal [n, ys]) (\ _ ->
-           (foldl vapp_ mVal [VSucc_ n, VCons_ aVal n y ys]))))))
-      cType_ ii g n VNat_
-      let nVal = cEval_ n (fst g, [])
-      cType_ ii g vs (VVec_ aVal nVal)
-      let vsVal = cEval_ vs (fst g, [])
-      return (foldl vapp_ mVal [nVal, vsVal])
-iType_ i g (Eq_ a x y) =
-  do  cType_ i g a VStar_
-      let aVal = cEval_ a (fst g, [])
-      cType_ i g x aVal
-      cType_ i g y aVal
-      return VStar_
-iType_ i g (EqElim_ a m mr x y eq) =
-  do  cType_ i g a VStar_
-      let aVal = cEval_ a (fst g, [])
-      cType_ i g m
-        (VPi_ "" aVal (\ x ->
-         VPi_ ""aVal (\ y ->
-         VPi_ ""(VEq_ aVal x y) (\ _ -> VStar_)))) 
-      let mVal = cEval_ m (fst g, [])
-      cType_ i g mr
-        (VPi_ "" aVal (\ x ->
-         foldl vapp_ mVal [x, x]))
-      cType_ i g x aVal
-      let xVal = cEval_ x (fst g, [])
-      cType_ i g y aVal
-      let yVal = cEval_ y (fst g, [])
-      cType_ i g eq (VEq_ aVal xVal yVal)
-      let eqVal = cEval_ eq (fst g, [])
-      return (foldl vapp_ mVal [xVal, yVal])
+iType ii g Nat                  =  return VStar
+iType ii g (NatElim m mz ms n)  =
+  do  cType ii g m (VPi "pix" VNat (const VStar))
+      let mVal  = cEval m (fst g, []) 
+      cType ii g mz (mVal `vapp` VZero)
+      cType ii g ms (VPi "piy" VNat (\ k -> VPi "piz" (mVal `vapp` k) (\_ -> mVal `vapp` VSucc k)))
+      cType ii g n VNat
+      let nVal = cEval n (fst g, [])
+      return (mVal `vapp` nVal)
+iType ii g (Vec a n) =
+  do  cType ii g a  VStar
+      cType ii g n  VNat
+      return VStar
+iType ii g (VecElim a m mn mc n vs) =
+  do  cType ii g a VStar
+      let aVal = cEval a (fst g, [])
+      cType ii g m
+        (  VPi "" VNat (\n -> VPi "" (VVec aVal n) (\_ -> VStar)))
+      let mVal = cEval m (fst g, [])
+      cType ii g mn (foldl vapp mVal [VZero, VNil aVal])
+      cType ii g mc
+        (  VPi "" VNat (\ n -> 
+           VPi "" aVal (\ y -> 
+           VPi "" (VVec aVal n) (\ ys ->
+           VPi "" (foldl vapp mVal [n, ys]) (\_ ->
+           (foldl vapp mVal [VSucc n, VCons aVal n y ys]))))))
+      cType ii g n VNat
+      let nVal = cEval n (fst g, [])
+      cType ii g vs (VVec aVal nVal)
+      let vsVal = cEval vs (fst g, [])
+      return (foldl vapp mVal [nVal, vsVal])
+iType i g (Eq a x y) =
+  do  cType i g a VStar
+      let aVal = cEval a (fst g, [])
+      cType i g x aVal
+      cType i g y aVal
+      return VStar
+iType i g (EqElim a m mr x y eq) =
+  do  cType i g a VStar
+      let aVal = cEval a (fst g, [])
+      cType i g m
+        (VPi "" aVal (\ x ->
+         VPi ""aVal (\ y ->
+         VPi ""(VEq aVal x y) (\_ -> VStar)))) 
+      let mVal = cEval m (fst g, [])
+      cType i g mr
+        (VPi "" aVal (\ x ->
+         foldl vapp mVal [x, x]))
+      cType i g x aVal
+      let xVal = cEval x (fst g, [])
+      cType i g y aVal
+      let yVal = cEval y (fst g, [])
+      cType i g eq (VEq aVal xVal yVal)
+      let eqVal = cEval eq (fst g, [])
+      return (foldl vapp mVal [xVal, yVal])
 
 
 
-cType_ :: Int -> (NameEnv Value_,Context_) -> CTerm_ -> Type_ -> Result ()
-cType_ ii g (Inf_ e) v 
-  =     do  v' <- iType_ ii g e
-            unless ( quote0_ v == quote0_ v') (throwError ("type mismatch:\n" ++ "type inferred:  " ++ render (cPrint_ 0 0 (quote0_ v')) ++ "\n" ++ "type expected:  " ++ render (cPrint_ 0 0 (quote0_ v)) ++ "\n" ++ "for expression: " ++ render (iPrint_ 0 0 e)))
-cType_ ii g (Lam_ vn e) ( VPi_ vnt ty ty')
-  =     cType_  (ii + 1) ((\ (d,g) -> (d,  ((Local ii vn, ty ) : g))) g)
-                (cSubst_ 0 (Free_ (Local ii vn)) e) ( ty' (vfree_ (Local ii vn))) 
+cType :: Int -> (NameEnv Value,Context) -> CTerm -> Type -> Result ()
+cType ii g (Inf e) v 
+  =     do  v' <- iType ii g e
+            unless ( quote0 v == quote0 v') (throwError ("type mismatch:\n" ++ "type inferred:  " ++ render (cPrint 0 0 (quote0 v')) ++ "\n" ++ "type expected:  " ++ render (cPrint 0 0 (quote0 v)) ++ "\n" ++ "for expression: " ++ render (iPrint 0 0 e)))
+cType ii g (Lam vn e) ( VPi vnt ty ty')
+  =     cType  (ii + 1) ((\ (d,g) -> (d,  ((Local ii vn, ty ) : g))) g)
+                (cSubst 0 (Free (Local ii vn)) e) ( ty' (vfree (Local ii vn))) 
  --PROBLEM: one of these is vnt?
 
-cType_ ii g Zero_      VNat_  =  return ()
-cType_ ii g (Succ_ k)  VNat_  =  cType_ ii g k VNat_
-cType_ ii g (Nil_ a) (VVec_ bVal VZero_) =
-  do  cType_ ii g a VStar_
-      let aVal = cEval_ a (fst g, []) 
-      unless  (quote0_ aVal == quote0_ bVal) 
+cType ii g Zero      VNat  =  return ()
+cType ii g (Succ k)  VNat  =  cType ii g k VNat
+cType ii g (Nil a) (VVec bVal VZero) =
+  do  cType ii g a VStar
+      let aVal = cEval a (fst g, []) 
+      unless  (quote0 aVal == quote0 bVal) 
               (throwError "type mismatch")
-cType_ ii g (Cons_ a n x xs) (VVec_ bVal (VSucc_ k)) =
-  do  cType_ ii g a VStar_
-      let aVal = cEval_ a (fst g, [])
-      unless  (quote0_ aVal == quote0_ bVal)
+cType ii g (Cons a n x xs) (VVec bVal (VSucc k)) =
+  do  cType ii g a VStar
+      let aVal = cEval a (fst g, [])
+      unless  (quote0 aVal == quote0 bVal)
               (throwError "type mismatch")
-      cType_ ii g n VNat_
-      let nVal = cEval_ n (fst g, [])
-      unless  (quote0_ nVal == quote0_ k)
+      cType ii g n VNat
+      let nVal = cEval n (fst g, [])
+      unless  (quote0 nVal == quote0 k)
               (throwError "number mismatch")
-      cType_ ii g x aVal
-      cType_ ii g xs (VVec_ bVal k)
-cType_ ii g (Refl_ a z) (VEq_ bVal xVal yVal) =
-  do  cType_ ii g a VStar_
-      let aVal = cEval_ a (fst g, [])
-      unless  (quote0_ aVal == quote0_ bVal)
+      cType ii g x aVal
+      cType ii g xs (VVec bVal k)
+cType ii g (Refl a z) (VEq bVal xVal yVal) =
+  do  cType ii g a VStar
+      let aVal = cEval a (fst g, [])
+      unless  (quote0 aVal == quote0 bVal)
               (throwError "type mismatch")
-      cType_ ii g z aVal
-      let zVal = cEval_ z (fst g, [])
-      unless  (quote0_ zVal == quote0_ xVal && quote0_ zVal == quote0_ yVal)
+      cType ii g z aVal
+      let zVal = cEval z (fst g, [])
+      unless  (quote0 zVal == quote0 xVal && quote0 zVal == quote0 yVal)
               (throwError "type mismatch")
-cType_ ii g _ _
+cType ii g _ _
   =     throwError "type mismatch"
-
--- data Nat = Zero | Succ Nat
--- 
--- plus :: Nat -> Nat -> Nat 
--- plus Zero n      = n 
--- plus (Succ k) n  = Succ (plus k n) 
 
