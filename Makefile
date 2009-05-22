@@ -10,3 +10,4 @@ clean:
 	rm *.o
 	rm *.hi
 	rm lp
+	rm st
