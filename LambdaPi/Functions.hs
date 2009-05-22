@@ -142,24 +142,25 @@ quote ii x = case x of
   VFSucc n f     -> FSucc  (quote ii n) (quote ii f)
   where
   neutralQuote :: Int -> Neutral -> ITerm
-  neutralQuote ii (NFree v)  = Free v
-  neutralQuote ii (NQuote k) = Bound ((ii - k -1) `max` 0) 
-  neutralQuote ii (NApp n v)
-    = neutralQuote ii n :$: quote ii v
-  neutralQuote ii (NNatElim m z s n)
-    = NatElim (quote ii m) (quote ii z) (quote ii s) (Inf (neutralQuote ii n))
-  neutralQuote ii (NVecElim a m mn mc n xs)
-    = VecElim (quote ii a) (quote ii m)
-              (quote ii mn) (quote ii mc)
-              (quote ii n) (Inf (neutralQuote ii xs))
-  neutralQuote ii (NEqElim a m mr x y eq)
-    = EqElim  (quote ii a) (quote ii m) (quote ii mr)
-              (quote ii x) (quote ii y)
-              (Inf (neutralQuote ii eq))
-  neutralQuote ii (NFinElim m mz ms n f)
-    = FinElim (quote ii m)
-              (quote ii mz) (quote ii ms)
-              (quote ii n) (Inf (neutralQuote ii f))
+  neutralQuote ii x = case x of
+    NFree v  -> Free v
+    NQuote k -> Bound ((ii - k -1) `max` 0)
+    NApp n v -> neutralQuote ii n :$: quote ii v
+    NNatElim m z s n
+      -> NatElim (quote ii m) (quote ii z) (quote ii s)
+                 (Inf (neutralQuote ii n))
+    NVecElim a m mn mc n xs
+      -> VecElim (quote ii a) (quote ii m)
+                (quote ii mn) (quote ii mc)
+                (quote ii n) (Inf (neutralQuote ii xs))
+    NEqElim a m mr x y eq
+      -> EqElim  (quote ii a) (quote ii m) (quote ii mr)
+                (quote ii x) (quote ii y)
+                (Inf (neutralQuote ii eq))
+    NFinElim m mz ms n f
+      -> FinElim (quote ii m)
+                (quote ii mz) (quote ii ms)
+                (quote ii n) (Inf (neutralQuote ii f))
   
 
 instance Show Value where
