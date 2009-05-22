@@ -24,23 +24,23 @@ module SimplyTyped.Types where
  
 
 
-{- LINE 705 "LP.lhs" #-}
+
   data Type
      =  TFree  Name
      |  Fun    Type Type
     deriving (Show, Eq)
-{- LINE 712 "LP.lhs" #-}
+
   data Value
      =  VLam  String    (Value -> Value)
      |  VNeutral  Neutral
-{- LINE 725 "LP.lhs" #-}
+
   data Neutral
      =  NFree  Name
      |  NApp   Neutral Value
-{- LINE 732 "LP.lhs" #-}
+
   vfree :: Name -> Value
   vfree n = VNeutral (NFree n)
-{- LINE 786 "LP.lhs" #-}
+
   data Kind = Star
     deriving (Show)
  
@@ -50,7 +50,7 @@ module SimplyTyped.Types where
     deriving (Show)
  
   type Context = [(Name, Info)]
-{- LINE 801 "LP.lhs" #-}
+
   type Env = [Value]
 
 

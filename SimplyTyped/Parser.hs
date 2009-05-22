@@ -9,10 +9,10 @@ module SimplyTyped.Parser where
   import Text.ParserCombinators.Parsec.Language
 
 
-{- LINE 5 "Parser.lhs" #-}
+
   simplyTyped = makeTokenParser (haskellStyle { identStart = letter <|> P.char '_',
                                                 reservedNames = ["let", "assume", "putStrLn"] })
-{- LINE 9 "Parser.lhs" #-}
+
   parseBindings :: CharParser () ([String], [Info])
   parseBindings = 
                      (let rec :: [String] -> [Info] -> CharParser () ([String], [Info])
@@ -33,7 +33,7 @@ module SimplyTyped.Parser where
                          return ([x], [t])
     where
       pInfo = fmap HasType (parseType 0 []) <|> fmap (const (HasKind Star)) (reserved simplyTyped "*")
-{- LINE 30 "Parser.lhs" #-}
+
   parseStmt :: [String] -> CharParser () (Stmt ITerm Info)
   parseStmt e =
         do
@@ -55,7 +55,7 @@ module SimplyTyped.Parser where
           x <- option "" (stringLiteral simplyTyped)
           return (Out x)
     <|> fmap Eval (parseITerm 0 e)
-{- LINE 52 "Parser.lhs" #-}
+
   parseType :: Int -> [String] -> CharParser () Type
   parseType 0 e =
     try
@@ -73,7 +73,7 @@ module SimplyTyped.Parser where
           x <- identifier simplyTyped
           return (TFree (Global x))
     <|> parens simplyTyped (parseType 0 e)
-{- LINE 70 "Parser.lhs" #-}
+
   parseITerm :: Int -> [String] -> CharParser () ITerm
   parseITerm 0 e =
     try
@@ -124,7 +124,7 @@ module SimplyTyped.Parser where
            --  reserved simplyTyped "."
          --CHANGED  return (iterate Lam t !! length xs)
            return (foldr ($) t (map Lam xs))
-{- LINE 122 "Parser.lhs" #-}
+
   parseIO :: String -> CharParser () a -> String -> IO (Maybe a)
   parseIO f p x = case P.parse (whiteSpace simplyTyped >> p >>= \ x -> eof >> return x) f x of
                     Left e  -> putStrLn (show e) >> return Nothing
