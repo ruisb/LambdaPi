@@ -57,7 +57,7 @@ cType ii g (Inf e) ty
 cType ii g (Lam vn e) (Fun ty ty')
   =  cType  (ii + 1) ((Local ii vn, HasType ty) : g)
             (cSubst 0 (Free (Local ii vn)) e) ty'
-PROBLEM: CAPTURE?
+--PROBLEM: CAPTURE?
 cType ii g _ _
   =  throwError "type mismatch" 
 
@@ -71,7 +71,7 @@ iSubst ii r (e1 :@: e2)  =  iSubst ii r e1 :@: cSubst ii r e2
 cSubst :: Int -> ITerm -> CTerm -> CTerm
 cSubst ii r (Inf e)      =  Inf (iSubst ii r e)
 cSubst ii r (Lam vn e)   =  Lam vn (cSubst (ii + 1) r e)
-PROBLEM: CAPTURE
+--PROBLEM: CAPTURE
 
 quote0 :: Value -> CTerm
 quote0 = quote 0
