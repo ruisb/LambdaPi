@@ -73,7 +73,7 @@ parseITerm 0 e =
       do
         reserved lambdaPi "->"
         t' <- parseCTerm 0 ([]:e)
-        return (Pi "unnamed" t t')
+        return (Pi "_" t t')
 parseITerm 1 e =
   try
      (do
@@ -103,8 +103,8 @@ parseITerm 3 e =
   <|> do
         x <- identifier lambdaPi
         case findIndex (== x) e of
-          Just n  -> return (Bound n "inventedboundname")
-          Nothing -> return (Free (Global x))
+          Just n  -> return (Bound n)
+          Nothing -> return (Free x)
   <|> parens lambdaPi (parseITerm 0 e)
 
 parseCTerm :: Int -> [String] -> CharParser () CTerm
@@ -132,4 +132,9 @@ toNat' :: Integer -> CTerm
 toNat' 0  =  Zero
 toNat' n  =  Succ (toNat' (n - 1))
 
+
+parseIO :: String -> CharParser () a -> String -> IO (Maybe a)
+parseIO f p x = case P.parse (whiteSpace lambdaPi >> p >>= \ x -> eof >> return x) f x of
+                  Left e  -> putStrLn (show e) >> return Nothing
+                  Right r -> return (Just r)
 

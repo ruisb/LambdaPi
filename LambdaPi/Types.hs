@@ -17,7 +17,7 @@ data ITerm
    =  Ann CTerm CTerm
    |  Star
    |  Pi String CTerm CTerm
-   |  Bound  Int String
+   |  Bound  Int 
    |  Free  Name
    |  ITerm :$: CTerm
    |  Nat
@@ -34,7 +34,7 @@ instance Eq ITerm where
   Ann x y == Ann x' y' = x==x' && y==y'
   Star == Star = True
   Pi _ a b == Pi _ a' b' = a==a' && b==b'
-  Bound n1 _ == Bound n2 _ = n1==n2
+  Bound n1 == Bound n2 = n1==n2
   Free n == Free n' = n==n'
   a :$: b == a':$:b' = a==a' && b==b'
   Nat == Nat = True
@@ -67,6 +67,7 @@ data Value
 
 data Neutral
    =  NFree  Name
+   |  NQuote Int 
    |  NApp  Neutral Value
    |  NNatElim Value Value Value Neutral
    |  NVecElim Value Value Value Value Value Neutral

@@ -1,7 +1,7 @@
 module Interpreter.Runner where
 import Interpreter.Types
 
-import SimplyTyped.Parser(parseIO)
+import LambdaPi.Parser(parseIO)
 
 import Data.Char
 import Data.List
@@ -104,7 +104,7 @@ handleCommand int state@(inter, out, ve, te) cmd
                       t <- maybe (return Nothing) (iinfer int ve te) x
                       maybe (return ()) (\u -> putStrLn (render (itprint int u))) t
                       return (Just state)
-       Browse ->  do  putStr (unlines [ s | Global s <- reverse (nub (map fst te)) ])
+       Browse ->  do  putStr (unlines (reverse (nub (map fst te)) ))
                       return (Just state)
        Compile c ->
                   do  state <- case c of
@@ -166,7 +166,7 @@ handleStmt int state@(inter, out, ve, te) stmt =
                                                 else render (text i <> text " :: " <> itprint int y)
                        putStrLn outtext
                        unless (null out) (writeFile out (process outtext)))
-        (\ (y, v) -> (inter, "", (Global i, v) : ve, (Global i, ihastype int y) : te))
+        (\ (y, v) -> (inter, "", (i, v) : ve, (i, ihastype int y) : te))
 
 check :: Interpreter i c v t tinf inf -> State v inf -> String -> i
          -> ((t, v) -> IO ()) -> ((t, v) -> State v inf) -> IO (State v inf)

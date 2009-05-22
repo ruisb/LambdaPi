@@ -14,6 +14,8 @@ vapp x v = case x of
 vfree :: Name -> Value
 vfree n = VNeutral $ NFree n
 
+vquote = VNeutral . NQuote 
+
 cEval :: CTerm -> (NameEnv Value,Env) -> Value
 cEval x d = case x of
   Inf  ii       -> iEval ii d
@@ -35,7 +37,7 @@ iEval x d = case x of
   Free   x                   -> case lookup x (fst d) of 
                                     Nothing ->  (vfree x)
                                     Just v -> v 
-  Bound  ii _                -> (snd d) !! ii
+  Bound  ii                  -> (snd d) !! ii
   i :$: c                    -> vapp (iEval i d) (cEval c d)
   Nat                        -> VNat
   NatElim m mz ms n          -> rec (cEval n d)
@@ -79,7 +81,7 @@ iSubst :: Int -> ITerm -> ITerm -> ITerm
 iSubst ii i' (Ann c c')     = Ann (cSubst ii i' c) (cSubst ii i' c')
 iSubst ii r  Star           = Star  
 iSubst ii r  (Pi vn ty ty') = Pi vn (cSubst ii r ty) (cSubst (ii + 1) r ty')
-iSubst ii i' (Bound j vn)   = if ii == j then i' else Bound j vn
+iSubst ii i' (Bound j)      = if ii == j then i' else Bound j
 iSubst ii i' (Free y)       = Free y
 iSubst ii i' (i :$: c)      = iSubst ii i' i :$: cSubst ii i' c
 iSubst ii r  Nat            = Nat
@@ -121,10 +123,10 @@ cSubst ii r  (FSucc n k) = FSucc (cSubst ii r n) (cSubst ii r k)
 
 quote :: Int -> Value -> CTerm
 quote ii x = case x of
-  VLam vn t      -> Lam vn (quote (ii + 1) (t (vfree (Quote ii vn))))
+  VLam vn t      -> Lam vn (quote (ii + 1) (t (vquote ii)))
   VStar          -> Inf Star 
   VPi vn v f     -> Inf (Pi vn (quote ii v) (quote (ii + 1)
-                               (f (vfree (Quote ii vn )))))
+                               (f (vquote ii))))
   VNeutral n     -> Inf (neutralQuote ii n)
   VNat           -> Inf Nat
   VZero          -> Zero
@@ -140,8 +142,8 @@ quote ii x = case x of
   VFSucc n f     -> FSucc  (quote ii n) (quote ii f)
   where
   neutralQuote :: Int -> Neutral -> ITerm
-  neutralQuote ii (NFree v)
-    = boundfree ii v
+  neutralQuote ii (NFree v)  = Free v
+  neutralQuote ii (NQuote k) = Bound ((ii - k -1) `max` 0) 
   neutralQuote ii (NApp n v)
     = neutralQuote ii n :$: quote ii v
   neutralQuote ii (NNatElim m z s n)
@@ -159,9 +161,6 @@ quote ii x = case x of
               (quote ii mz) (quote ii ms)
               (quote ii n) (Inf (neutralQuote ii f))
   
-boundfree :: Int -> Name -> ITerm
-boundfree ii (Quote k vn) = Bound ((ii - k - 1) `max` 0) vn
-boundfree ii x            = Free x
 
 instance Show Value where
   show = show . quote0
@@ -172,132 +171,129 @@ type Context = [(Name, Type)]
 quote0 :: Value -> CTerm
 quote0 = quote 0 
 
-iType0 :: (NameEnv Value,Context) -> ITerm -> Result Type
-iType0 = iType 0
-
-iType :: Int -> (NameEnv Value,Context) -> ITerm -> Result Type
-iType ii g (Ann e tyt )
-  = do cType  ii g tyt VStar
+iType :: (NameEnv Value,Context) -> ITerm -> Result Type
+iType g (Ann e tyt )
+  = do cType  g tyt VStar
        let ty = cEval tyt (fst g, [])  
-       cType ii g e ty
+       cType g e ty
        return ty
-iType ii g Star = return VStar   
-iType ii g (Pi vn tyt tyt')  
-  = do cType ii g tyt VStar    
+iType g Star = return VStar   
+iType g (Pi vn tyt tyt')  
+  = do cType g tyt VStar    
        let ty = cEval tyt (fst g, [])  
-       cType  (ii + 1) ((\ (d,g) -> (d,  ((Local ii vn, ty) : g))) g)
-              (cSubst 0 (Free (Local ii vn)) tyt') VStar
+       cType  ((\ (d,g) -> (d,  (vn, ty) : g)) g)
+              (cSubst 0 (Free vn) tyt') VStar
        return VStar   
-iType ii g (Free x)
+iType g (Free x)
   = case lookup x (snd g) of
         Just ty ->  return ty
         Nothing ->  throwError ("unknown identifier: " 
-                                ++ render (iPrint 0 0 (Free x)))
-iType ii g (e1 :$: e2)
-  = do  si <- iType ii g e1
+                                ++ render (iPrint 0 [] (Free x)))
+iType g (e1 :$: e2)
+  = do  si <- iType g e1
         case si of
-          VPi _ ty ty' -> do cType ii g e2 ty
+          VPi _ ty ty' -> do cType g e2 ty
                              return ( ty' (cEval e2 (fst g, [])))
           _            ->  throwError "illegal application"
 
-iType ii g Nat                  = return VStar
-iType ii g (NatElim m mz ms n)
-  = do cType ii g m (VPi "pix" VNat (const VStar))
+iType g Nat                  = return VStar
+iType g (NatElim m mz ms n)
+  = do cType g m (VPi "pix" VNat (const VStar))
        let mVal = cEval m (fst g, []) 
-       cType ii g mz (mVal `vapp` VZero)
-       cType ii g ms (VPi "piy" VNat (\ k -> VPi "piz" (mVal `vapp` k) 
+       cType g mz (mVal `vapp` VZero)
+       cType g ms (VPi "piy" VNat (\ k -> VPi "piz" (mVal `vapp` k) 
                                      (\_ -> mVal `vapp` VSucc k)))
-       cType ii g n VNat
+       cType g n VNat
        let nVal = cEval n (fst g, [])
        return (mVal `vapp` nVal)
-iType ii g (Vec a n)
-  = do cType ii g a  VStar
-       cType ii g n  VNat
+iType g (Vec a n)
+  = do cType g a  VStar
+       cType g n  VNat
        return VStar
-iType ii g (VecElim a m mn mc n vs)
-  = do cType ii g a VStar
+iType g (VecElim a m mn mc n vs)
+  = do cType g a VStar
        let aVal = cEval a (fst g, [])
-       cType ii g m
+       cType g m
              (VPi "" VNat (\n -> VPi "" (VVec aVal n) (\_ -> VStar)))
        let mVal = cEval m (fst g, [])
-       cType ii g mn (foldl vapp mVal [VZero, VNil aVal])
-       cType ii g mc
+       cType g mn (foldl vapp mVal [VZero, VNil aVal])
+       cType g mc
          (VPi "" VNat (\ n -> 
           VPi "" aVal (\ y -> 
           VPi "" (VVec aVal n) (\ ys ->
           VPi "" (foldl vapp mVal [n, ys]) (\_ ->
           (foldl vapp mVal [VSucc n, VCons aVal n y ys]))))))
-       cType ii g n VNat
+       cType g n VNat
        let nVal = cEval n (fst g, [])
-       cType ii g vs (VVec aVal nVal)
+       cType g vs (VVec aVal nVal)
        let vsVal = cEval vs (fst g, [])
        return (foldl vapp mVal [nVal, vsVal])
-iType i g (Eq a x y)
-  = do cType i g a VStar
+iType g (Eq a x y)
+  = do cType g a VStar
        let aVal = cEval a (fst g, [])
-       cType i g x aVal
-       cType i g y aVal
+       cType g x aVal
+       cType g y aVal
        return VStar
-iType i g (EqElim a m mr x y eq)
-  = do cType i g a VStar
+iType g (EqElim a m mr x y eq)
+  = do cType g a VStar
        let aVal = cEval a (fst g, [])
-       cType i g m
+       cType g m
          (VPi "" aVal (\ x ->
           VPi ""aVal (\ y ->
           VPi ""(VEq aVal x y) (\_ -> VStar)))) 
        let mVal = cEval m (fst g, [])
-       cType i g mr
+       cType g mr
          (VPi "" aVal (\ x ->
           foldl vapp mVal [x, x]))
-       cType i g x aVal
+       cType g x aVal
        let xVal = cEval x (fst g, [])
-       cType i g y aVal
+       cType g y aVal
        let yVal = cEval y (fst g, [])
-       cType i g eq (VEq aVal xVal yVal)
+       cType g eq (VEq aVal xVal yVal)
        let eqVal = cEval eq (fst g, [])
        return (foldl vapp mVal [xVal, yVal])
 
-cType :: Int -> (NameEnv Value,Context) -> CTerm -> Type -> Result ()
-cType ii g (Inf e) v 
-  = do v' <- iType ii g e
+cType :: (NameEnv Value,Context) -> CTerm -> Type -> Result ()
+cType g (Inf e) v 
+  = do v' <- iType g e
        unless ( quote0 v == quote0 v') (throwError ("type mismatch:\n"
                                         ++ "type inferred:  "
-                                        ++ render (cPrint 0 0 (quote0 v'))
+                                        ++ render (cPrint 0 [] (quote0 v'))
                                         ++ "\n" ++ "type expected:  "
-                                        ++ render (cPrint 0 0 (quote0 v))
+                                        ++ render (cPrint 0 [] (quote0 v))
                                         ++ "\n" ++ "for expression: " 
-                                        ++ render (iPrint 0 0 e)))
-cType ii g (Lam vn e) ( VPi vnt ty ty')
-  =    cType  (ii + 1) ((\ (d,g) -> (d,  ((Local ii vn, ty ) : g))) g)
-              (cSubst 0 (Free (Local ii vn)) e) ( ty' (vfree (Local ii vn)))
+                                        ++ render (iPrint 0 [] e)))
+cType g (Lam vn e) ( VPi vnt ty ty')
+  =    cType  ((\ (d,g) -> (d,  (vn, ty ) : g)) g)
+              (cSubst 0 (Free vn) e) ( ty' (vfree vn))
  --PROBLEM: one of these is vnt?
 
-cType ii g Zero      VNat              = return ()
-cType ii g (Succ k)  VNat              = cType ii g k VNat
-cType ii g (Nil a)   (VVec bVal VZero)
-  = do  cType ii g a VStar
+cType g Zero      VNat              = return ()
+cType g (Succ k)  VNat              = cType g k VNat
+cType g (Nil a)   (VVec bVal VZero)
+  = do  cType g a VStar
         let aVal = cEval a (fst g, []) 
         unless  (quote0 aVal == quote0 bVal) 
                 (throwError "type mismatch")
-cType ii g (Cons a n x xs) (VVec bVal (VSucc k))
-  = do  cType ii g a VStar
+cType g (Cons a n x xs) (VVec bVal (VSucc k))
+  = do  cType g a VStar
         let aVal = cEval a (fst g, [])
         unless  (quote0 aVal == quote0 bVal)
                 (throwError "type mismatch")
-        cType ii g n VNat
+        cType g n VNat
         let nVal = cEval n (fst g, [])
         unless  (quote0 nVal == quote0 k)
                 (throwError "number mismatch")
-        cType ii g x aVal
-        cType ii g xs (VVec bVal k)
-cType ii g (Refl a z) (VEq bVal xVal yVal)
-  = do  cType ii g a VStar
+        cType g x aVal
+        cType g xs (VVec bVal k)
+cType g (Refl a z) (VEq bVal xVal yVal)
+  = do  cType g a VStar
         let aVal = cEval a (fst g, [])
         unless  (quote0 aVal == quote0 bVal)
                 (throwError "type mismatch")
-        cType ii g z aVal
+        cType g z aVal
         let zVal = cEval z (fst g, [])
         unless  (quote0 zVal == quote0 xVal && quote0 zVal == quote0 yVal)
                 (throwError "type mismatch")
-cType ii g _ _
+cType g _ _
   = throwError "type mismatch"

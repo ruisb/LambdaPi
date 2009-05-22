@@ -125,9 +125,5 @@ module SimplyTyped.Parser where
          --CHANGED  return (iterate Lam t !! length xs)
            return (foldr ($) t (map Lam xs))
 
-  parseIO :: String -> CharParser () a -> String -> IO (Maybe a)
-  parseIO f p x = case P.parse (whiteSpace simplyTyped >> p >>= \ x -> eof >> return x) f x of
-                    Left e  -> putStrLn (show e) >> return Nothing
-                    Right r -> return (Just r)
 
 
