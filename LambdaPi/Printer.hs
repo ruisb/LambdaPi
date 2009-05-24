@@ -6,11 +6,18 @@ import Prelude hiding (print)
 import Text.PrettyPrint.HughesPJ hiding (parens)
 import qualified Text.PrettyPrint.HughesPJ as PP
 
+--------------------------------------------------------------------------------
+-- Print functions.
+--------------------------------------------------------------------------------
+
+-- Print an interable term.
 iPrint :: ITerm -> Doc
 iPrint = iPrint' 0 []
+-- Print a checkable term.
 cPrint :: CTerm -> Doc
 cPrint = cPrint' 0 []
 
+-- Print an interable term.
 iPrint' :: Int -> [String] -> ITerm -> Doc
 iPrint' p ctx x = case x of
   Ann c ty        -> parensIf (p > 1)
@@ -38,32 +45,36 @@ iPrint' p ctx x = case x of
                      (Free "eqElim" :$: a :$: m :$: mr :$: x :$: y :$: eq)
   Fin n           -> iPrint' p ctx (Free "Fin" :$: n)
   FinElim m mz ms n f
-                  ->  iPrint' p ctx
-                      (Free "finElim" :$: m :$: mz :$: ms :$: n :$: f)
+                  -> iPrint' p ctx
+                     (Free "finElim" :$: m :$: mz :$: ms :$: n :$: f)
 
-
+-- Print a checkable term.
 cPrint' :: Int -> [String] -> CTerm -> Doc
 cPrint' p ctx x = case x of
-
    Inf i         -> iPrint' p ctx i
    Lam vn c      -> parensIf (p > 0) $
                     text "\\ " <> text vn <> text " -> " <> cPrint' 0 (vn:ctx) c
-   Zero          -> fromNat 0 ctx Zero
-   Succ n        -> fromNat 0 ctx (Succ n)
+   Zero          -> fromNat ctx Zero
+   Succ n        -> fromNat ctx (Succ n)
    Nil a         -> iPrint' p ctx (Free "Nil" :$: a)
    Cons a n x xs -> iPrint' p ctx (Free "Cons" :$: a :$: n :$: x :$: xs)
    Refl a x      -> iPrint' p ctx (Free "Refl" :$: a :$: x)
    FZero n       -> iPrint' p ctx (Free "FZero" :$: n)
    FSucc n f     -> iPrint' p ctx (Free "FSucc" :$: n :$: f)
 
+-- Print (..) under a condition
 parensIf :: Bool -> Doc -> Doc
 parensIf True  = PP.parens
 parensIf False = id
 
-fromNat :: Int -> [String] -> CTerm -> Doc
-fromNat n ctx Zero     = int n
-fromNat n ctx (Succ k) = fromNat (n + 1) ctx k
-fromNat n ctx t        = parensIf True (int n <> text " + " <> cPrint' 0 ctx t)
+-- Print a number which is represented in peano style, as a normal number.
+fromNat :: [String] -> CTerm -> Doc
+fromNat = fromNat' 0
+  where
+  fromNat' :: Int -> [String] -> CTerm -> Doc
+  fromNat' n ctx Zero     = int n
+  fromNat' n ctx (Succ k) = fromNat' (n + 1) ctx k
+  fromNat' n ctx t        = parensIf True (int n <> text " + " <> cPrint' 0 ctx t)
 
 nestedForall :: Int -> [String] -> [(Int,String, CTerm)] -> CTerm -> Doc
 nestedForall ii ctx ds (Inf (Pi vn d r)) = nestedForall (ii+1) (vn:ctx) ((ii,vn, d) : ds) r

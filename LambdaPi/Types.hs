@@ -1,39 +1,62 @@
 module LambdaPi.Types where
 import Interpreter.Types
 
+--------------------------------------------------------------------------------
+-- The term types and the hardcoded basic types (Nat, Vector, Eq & Fin).
+--------------------------------------------------------------------------------
+
+-- Terms that can be checked with a type signature.
 data CTerm
    =  Inf  ITerm
-   |  Lam  String CTerm
-   |  Zero
-   |  Succ CTerm
+   |  Lam  String CTerm           -- A lambda expression
+   -- The Nat constructors.
+   |  Zero                        -- 0
+   |  Succ CTerm                  -- +1
+   -- The Vector constructors.
    |  Nil CTerm
    |  Cons CTerm CTerm CTerm CTerm
+   -- The Equality constructors.
    |  Refl CTerm CTerm
+   -- The Finite constructors.
    |  FZero CTerm
    |  FSucc CTerm CTerm
   deriving (Show, Eq)
 
+-- Terms where the type signature can be infered.
 data ITerm
-   =  Ann CTerm CTerm
-   |  Star
-   |  Pi String CTerm CTerm
-   |  Bound  Int 
-   |  Free  Name
-   |  ITerm :$: CTerm
-   |  Nat
-   |  NatElim CTerm CTerm CTerm CTerm
-   |  Vec CTerm CTerm
-   |  VecElim CTerm CTerm CTerm CTerm CTerm CTerm
-   |  Eq CTerm CTerm CTerm
-   |  EqElim CTerm CTerm CTerm CTerm CTerm CTerm
-   |  Fin CTerm
-   |  FinElim CTerm CTerm CTerm CTerm CTerm
+   =  Ann CTerm CTerm                 -- Annotated terms.
+   |  Star                            -- The type of types
+   |  Pi String CTerm CTerm           -- Binding in dependent function space.
+   |  Bound Int                       -- A bound variabele. Indexed with a
+                                      -- 'de Bruijn indice'.
+   |  Free Name                       -- A variabele that isn't bound.
+   |  ITerm :$: CTerm                 -- Function application.
+   -- Natural numbers
+   |  Nat                             -- The Natural number type.
+   |  NatElim CTerm CTerm CTerm CTerm -- The Natural number type eliminator.
+   -- Vectors
+   |  Vec CTerm CTerm                 -- The Vector type.
+   |  VecElim CTerm CTerm CTerm CTerm CTerm CTerm -- The Vector type eliminator.
+   -- Equality
+   |  Eq CTerm CTerm CTerm            -- The Equality type.
+   |  EqElim CTerm CTerm CTerm CTerm CTerm CTerm -- The Equality type eliminator.
+   -- Finite numbers
+   |  Fin CTerm                       -- The Finite type
+   |  FinElim CTerm CTerm CTerm CTerm CTerm -- The Finite type eliminator
   deriving (Show{--, Eq--})
+
+
+
+-- FIXME more nicer way.
+-- we can fix this with
+--   type PiName = String
+--   instance Eq PiName where
+-- So we need only one case, but we need than the TypeSynonymInstances extension
 
 instance Eq ITerm where
   Ann x y == Ann x' y' = x==x' && y==y'
   Star == Star = True
-  Pi _ a b == Pi _ a' b' = a==a' && b==b'
+  Pi _ a b == Pi _ a' b' = a==a' && b==b' -- only difference compared to derived (Eq). We ignore the name here for equality.
   Bound n1 == Bound n2 = n1==n2
   Free n == Free n' = n==n'
   a :$: b == a':$:b' = a==a' && b==b'
@@ -48,27 +71,36 @@ instance Eq ITerm where
   _ == _ = False 
 
 
+-- The type of values.
 data Value
-   =  VLam String (Value -> Value)
-   |  VStar
-   |  VPi String Value (Value -> Value)
-   |  VNeutral Neutral
+   =  VLam String (Value -> Value)       -- Lambda abstraction
+   |  VStar                              -- The type of types
+   |  VPi String Value (Value -> Value)  -- Dependent function space
+   |  VNeutral Neutral                   -- Neutral term
+-- Natural number values in peano style.
    |  VNat
    |  VZero
    |  VSucc Value
+-- Vector values.
    |  VNil Value
    |  VCons Value Value Value Value
    |  VVec Value Value
+-- Equality values.
    |  VEq Value Value Value
    |  VRefl Value Value
+-- Finite values.
    |  VFZero Value
    |  VFSucc Value Value
    |  VFin Value
 
+-- A Neutral term, i.e., a variable applied to a (possibly empty) sequence of
+-- values.
 data Neutral
-   =  NFree  Name
-   |  NQuote Int 
-   |  NApp  Neutral Value
+   =  NFree  Name   -- Variable
+   |  NQuote Int
+   |  NApp  Neutral Value  -- An application of a neutral term to a value.
+   
+-- Eliminator for neutral terms, to avoid the eval get stuck.
    |  NNatElim Value Value Value Neutral
    |  NVecElim Value Value Value Value Value Neutral
    |  NEqElim Value Value Value Value Value Neutral

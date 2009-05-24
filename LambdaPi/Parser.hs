@@ -8,6 +8,10 @@ import qualified Text.ParserCombinators.Parsec as P
 import Text.ParserCombinators.Parsec.Token
 import Text.ParserCombinators.Parsec.Language
 
+--------------------------------------------------------------------------------
+-- Parse the core language.
+--------------------------------------------------------------------------------
+
 lambdaPi = makeTokenParser (haskellStyle { identStart = letter <|> P.char '_',
                                            reservedNames = ["forall", "let", "assume", "putStrLn", "out"] })
 

@@ -11,11 +11,13 @@ vapp x v = case x of
   VLam _ f   -> f v
   VNeutral n -> VNeutral $ NApp n v
 
+-- Creates the value corresponding to a free variable.
 vfree :: Name -> Value
 vfree n = VNeutral $ NFree n
 
 vquote = VNeutral . NQuote 
 
+-- Evaluate a checkable term.
 cEval :: CTerm -> (NameEnv Value,Env) -> Value
 cEval x d = case x of
   Inf  ii       -> iEval ii d
@@ -28,6 +30,7 @@ cEval x d = case x of
   FZero n       -> VFZero (cEval n d)
   FSucc n f     -> VFSucc (cEval n d) (cEval f d)
 
+-- Evaluate an inferable term.
 iEval :: ITerm -> (NameEnv Value, Env) -> Value
 iEval x d = case x of
   Ann  c _                   -> cEval c d
@@ -77,6 +80,7 @@ iEval x d = case x of
                                      (cEval ms d) (cEval n d) n'
       rec  _            = error "internal: eval finElim"
 
+-- Subsitute an inferable term with another inferable term.
 iSubst :: Int -> ITerm -> ITerm -> ITerm
 iSubst ii i' (Ann c c')     = Ann (cSubst ii i' c) (cSubst ii i' c')
 iSubst ii r  Star           = Star  
@@ -105,7 +109,8 @@ iSubst ii r  (FinElim m mz ms n f)
   = FinElim (cSubst ii r m)
             (cSubst ii r mz) (cSubst ii r ms)
             (cSubst ii r n) (cSubst ii r f)
-                                          
+
+-- Subsitute an inferable term with a checkable term.
 cSubst :: Int -> ITerm -> CTerm -> CTerm
 cSubst ii i' (Inf i)     = Inf (iSubst ii i' i)
 cSubst ii i' (Lam vn c)  = Lam vn (cSubst (ii + 1) i' c)
@@ -121,7 +126,10 @@ cSubst ii r  (Refl a x)  = Refl (cSubst ii r a) (cSubst ii r x)
 cSubst ii r  (FZero n)   = FZero (cSubst ii r n)
 cSubst ii r  (FSucc n k) = FSucc (cSubst ii r n) (cSubst ii r k)
 
-quote :: Int -> Value -> CTerm
+-- Make a value printable.
+-- REMARK: really needed for printing functions.
+quote :: Int -- counts the number of binders we have traversed
+         -> Value -> CTerm
 quote ii x = case x of
   VLam vn t      -> Lam vn (quote (ii + 1) (t (vquote ii)))
   VStar          -> Inf Star 
@@ -141,6 +149,7 @@ quote ii x = case x of
   VFZero n       -> FZero (quote ii n)
   VFSucc n f     -> FSucc  (quote ii n) (quote ii f)
   where
+  -- Quote the arguments.
   neutralQuote :: Int -> Neutral -> ITerm
   neutralQuote ii x = case x of
     NFree v  -> Free v
@@ -162,17 +171,19 @@ quote ii x = case x of
                 (quote ii mz) (quote ii ms)
                 (quote ii n) (Inf (neutralQuote ii f))
   
-
+-- A value can be printed when it first is quoted.
 instance Show Value where
   show = show . quote0
 
 type Type    = Value  
+-- Associate names with types.
 type Context = [(Name, Type)]
 
 quote0 :: Value -> CTerm
 quote0 = quote 0 
 
-iType :: (NameEnv Value,Context) -> ITerm -> Result Type
+-- Type check an inferable term.
+iType :: (NameEnv Value, Context) -> ITerm -> Result Type
 iType g (Ann e tyt )
   = do cType  g tyt VStar
        let ty = cEval tyt (fst g, [])  
@@ -254,7 +265,8 @@ iType g (EqElim a m mr x y eq)
        let eqVal = cEval eq (fst g, [])
        return (foldl vapp mVal [xVal, yVal])
 
-cType :: (NameEnv Value,Context) -> CTerm -> Type -> Result ()
+-- Type check a checkable term.
+cType :: (NameEnv Value, Context) -> CTerm -> Type -> Result ()
 cType g (Inf e) v 
   = do v' <- iType g e
        unless ( quote0 v == quote0 v') (throwError ("type mismatch:\n"
@@ -265,10 +277,10 @@ cType g (Inf e) v
                                         ++ "\n" ++ "for expression: " 
                                         ++ render (iPrint e)))
 cType g (Lam vn e) ( VPi vnt ty ty')
-  =    cType  ((\ (d,g) -> (d,  (vn, ty ) : g)) g)
-              (cSubst 0 (Free vn) e) ( ty' (vfree vn))
- --PROBLEM: one of these is vnt?
-
+  =    cType  ((\(d, g) -> (d, (vn, ty) : g)) g)
+              (cSubst 0 (Free vn) e) (ty' (vfree vn))
+-- FIXME PROBLEM: one of these is vnt?
+-- FIXME boilerplate code?
 cType g Zero      VNat              = return ()
 cType g (Succ k)  VNat              = cType g k VNat
 cType g (Nil a)   (VVec bVal VZero)

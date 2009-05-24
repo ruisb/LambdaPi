@@ -11,14 +11,15 @@ lp = I { iname = "lambda-Pi",
          iprompt = "LP> ",
          iitype = curry iType,
          iquote = quote0,
-         ieval = \ e x -> iEval x (e, []),
+         ieval = \e x -> iEval x (e, []),
          ihastype = id,
          icprint = cPrint ,
          itprint = cPrint . quote0,
          iiparse = parseITerm 0 [],
          isparse = parseStmt [],
-         iassume = \ s (x, t) -> lpassume s x t }
+         iassume = \s (x, t) -> lpassume s x t }
 
+-- FIXME the VPi 'random' strings.
 lpte :: Ctx Value
 lpte =      [("Zero", VNat),
              ("Succ", VPi "pp" VNat (\_  -> VNat)),
@@ -61,6 +62,7 @@ lpte =      [("Zero", VNat),
                         VPi "yy" VNat (\ n -> VPi "zz" (VFin n) (\ f ->
                         m `vapp` n `vapp` f))))))]
 
+-- FIXME the VPi 'random' strings.
 lpve :: Ctx Value
 lpve =      [("Zero", VZero),
              ("Succ", VLam "aa" (\ n -> VSucc n)),
