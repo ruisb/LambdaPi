@@ -13,8 +13,8 @@ lp = I { iname = "lambda-Pi",
          iquote = quote0,
          ieval = \ e x -> iEval x (e, []),
          ihastype = id,
-         icprint = cPrint 0 [],
-         itprint = cPrint 0 [] . quote0,
+         icprint = cPrint ,
+         itprint = cPrint . quote0,
          iiparse = parseITerm 0 [],
          isparse = parseStmt [],
          iassume = \ s (x, t) -> lpassume s x t }
@@ -79,8 +79,8 @@ lpve =      [("Zero", VZero),
              ("Fin", VLam "iii" (\ n -> VFin n)),
              ("finElim", cEval (Lam "aaaaa" (Lam "bbbbb" (Lam "ccccc" (Lam "ddddd" (Lam "eeeee" (Inf (FinElim (Inf (Bound 4)) (Inf (Bound 3)) (Inf (Bound 2)) (Inf (Bound 1)) (Inf (Bound 0))))))))) ([],[]))]
 
-repLP :: Bool -> IO ()
-repLP b = readevalprint lp (b, [], lpve, lpte)
+repLP :: IntCtx -> Bool -> IO ()
+repLP ctx b = readevalprint ctx lp (b, [], lpve, lpte)
 
 lpassume state@(inter, out, ve, te) x t =
   check lp state x (Ann t (Inf Star))

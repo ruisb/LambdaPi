@@ -1,16 +1,6 @@
 module Interpreter.Types where
 
--- data Name
---    =  Global  String
---  --  |  Local   Int  String
--- --   |  Quote   Int  String  --should not be needed
---   deriving (Show {--, Eq--})
--- 
--- instance Eq Name where
---   (Global s1) == (Global s2) = s1 == s2
---  -- (Local n1 _) == (Local n2 _) = n1==n2
--- --  (Quote n1 _) == (Quote n2 _) = n1 == n2
---   _ == _ = False
+data IntCtx = IntCtx {readline :: String -> IO (Maybe String), addHistory :: String -> IO ()}
 
 type Name  = String
 

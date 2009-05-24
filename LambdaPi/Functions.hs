@@ -189,7 +189,7 @@ iType g (Free x)
   = case lookup x (snd g) of
         Just ty ->  return ty
         Nothing ->  throwError ("unknown identifier: " 
-                                ++ render (iPrint 0 [] (Free x)))
+                                ++ render (iPrint (Free x)))
 iType g (e1 :$: e2)
   = do  si <- iType g e1
         case si of
@@ -259,11 +259,11 @@ cType g (Inf e) v
   = do v' <- iType g e
        unless ( quote0 v == quote0 v') (throwError ("type mismatch:\n"
                                         ++ "type inferred:  "
-                                        ++ render (cPrint 0 [] (quote0 v'))
+                                        ++ render (cPrint (quote0 v'))
                                         ++ "\n" ++ "type expected:  "
-                                        ++ render (cPrint 0 [] (quote0 v))
+                                        ++ render (cPrint (quote0 v))
                                         ++ "\n" ++ "for expression: " 
-                                        ++ render (iPrint 0 [] e)))
+                                        ++ render (iPrint e)))
 cType g (Lam vn e) ( VPi vnt ty ty')
   =    cType  ((\ (d,g) -> (d,  (vn, ty ) : g)) g)
               (cSubst 0 (Free vn) e) ( ty' (vfree vn))
