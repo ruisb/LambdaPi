@@ -6,9 +6,9 @@ import Prelude hiding (print)
 import Text.PrettyPrint.HughesPJ hiding (parens)
 import qualified Text.PrettyPrint.HughesPJ as PP
 
---------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 -- Print functions.
---------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 
 -- Print an interable term.
 iPrint :: ITerm -> Doc
@@ -77,6 +77,12 @@ fromNat = fromNat' 0
   fromNat' n ctx t        = parensIf True (int n <> text " + " <> cPrint' 0 ctx t)
 
 nestedForall :: Int -> [String] -> [(Int,String, CTerm)] -> CTerm -> Doc
-nestedForall ii ctx ds (Inf (Pi vn d r)) = nestedForall (ii+1) (vn:ctx) ((ii,vn, d) : ds) r
-nestedForall _  ctx ds x                 = sep [text "forall " <> sep [parensIf True (text vn <> text " :: " <> cPrint' 0 (drop (length ds-ii) ctx) d) | (ii,vn,d) <- reverse ds] <> text " .", cPrint' 0 ctx x]
+nestedForall ii ctx ds (Inf (Pi vn d r)) = nestedForall (ii+1) (vn:ctx) 
+                                                        ((ii,vn, d) : ds) r
+nestedForall _  ctx ds x                 = 
+  sep [text "forall " 
+    <> sep [parensIf True (text vn 
+         <> text " :: " 
+         <> cPrint' 0 (drop (length ds-ii) ctx) d) | (ii,vn,d) <- reverse ds] 
+    <> text " .", cPrint' 0 ctx x]
 

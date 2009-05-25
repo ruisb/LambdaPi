@@ -8,12 +8,17 @@ import qualified Text.ParserCombinators.Parsec as P
 import Text.ParserCombinators.Parsec.Token
 import Text.ParserCombinators.Parsec.Language
 
---------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 -- Parse the core language.
---------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 
-lambdaPi = makeTokenParser (haskellStyle { identStart = letter <|> P.char '_',
-                                           reservedNames = ["forall", "let", "assume", "putStrLn", "out"] })
+lambdaPi = makeTokenParser (haskellStyle 
+                              { identStart    = letter <|> P.char '_',
+                                reservedNames = ["forall"
+                                                , "let"
+                                                , "assume"
+                                                , "putStrLn"
+                                                , "out"] })
 
 parseStmt :: [String] -> CharParser () (Stmt ITerm CTerm)
 parseStmt e =
@@ -38,32 +43,32 @@ parseStmt e =
   <|> fmap Eval (parseITerm 0 e)
 
 parseBindings :: Bool -> [String] -> CharParser () ([String], [CTerm])
-parseBindings b e = 
-                   (let rec :: [String] -> [CTerm] -> CharParser () ([String], [CTerm])
-                        rec e ts =
-                          do
-                           (x,t) <- parens lambdaPi
-                                      (do
-                                         x <- identifier lambdaPi
-                                         reserved lambdaPi "::"
-                                         t <- parseCTerm 0 (if b then e else [])
-                                         return (x,t))
-                           (rec (x : e) (t : ts) <|> return (x : e, t : ts))
-                    in rec e [])
-                   <|>
-                   do  x <- identifier lambdaPi
-                       reserved lambdaPi "::"
-                       t <- parseCTerm 0 e
-                       return (x : e, [t])
+parseBindings b e 
+  = (let rec :: [String] -> [CTerm] -> CharParser () ([String], [CTerm])
+         rec e ts =
+           do
+            (x,t) <- parens lambdaPi
+                       (do
+                          x <- identifier lambdaPi
+                          reserved lambdaPi "::"
+                          t <- parseCTerm 0 (if b then e else [])
+                          return (x,t))
+            (rec (x : e) (t : ts) <|> return (x : e, t : ts))
+     in rec e [])
+    <|>
+    do  x <- identifier lambdaPi
+        reserved lambdaPi "::"
+        t <- parseCTerm 0 e
+        return (x : e, [t])
 
 parseITerm :: Int -> [String] -> CharParser () ITerm
-parseITerm 0 e =
-      do
-        reserved lambdaPi "forall"
-        (vn:vns,t:ts) <- parseBindings True e
-        reserved lambdaPi "."
-        t' <- parseCTerm 0 (vn:vns)
-        return (foldl (\ p (vn,t) -> Pi vn t (Inf p)) (Pi vn t t') (zip vns ts))
+parseITerm 0 e 
+  = do
+      reserved lambdaPi "forall"
+      (vn:vns,t:ts) <- parseBindings True e
+      reserved lambdaPi "."
+      t' <- parseCTerm 0 (vn:vns)
+      return (foldl (\ p (vn,t) -> Pi vn t (Inf p)) (Pi vn t t') (zip vns ts))
   <|>
   try
      (do
@@ -138,7 +143,8 @@ toNat' n  =  Succ (toNat' (n - 1))
 
 
 parseIO :: String -> CharParser () a -> String -> IO (Maybe a)
-parseIO f p x = case P.parse (whiteSpace lambdaPi >> p >>= \ x -> eof >> return x) f x of
-                  Left e  -> putStrLn (show e) >> return Nothing
-                  Right r -> return (Just r)
+parseIO f p x
+  = case P.parse (whiteSpace lambdaPi >> p >>= \ x -> eof >> return x) f x of
+      Left e  -> putStrLn (show e) >> return Nothing
+      Right r -> return (Just r)
 
