@@ -1,6 +1,5 @@
 module Interpreter.Runner where
 import Interpreter.Types
-
 import LambdaPi.Parser(parseIO)
 
 import Data.Char
@@ -11,7 +10,6 @@ import Text.ParserCombinators.Parsec hiding (parse, State)
 import qualified Text.ParserCombinators.Parsec as P
 import Text.PrettyPrint.HughesPJ hiding (parens)
 import qualified Text.PrettyPrint.HughesPJ as PP
-
 
 
 --  read-eval-print loop
@@ -54,8 +52,6 @@ data CompileForm = CompileInteractive  String
 data InteractiveCommand = Cmd [String] String (String -> Command) String
 
 
-
-
 commands :: [InteractiveCommand]
 commands
   =  [ Cmd [":type"]        "<expr>"  TypeOf         "print type of expression",
@@ -75,7 +71,6 @@ helpTxt cs
      ++
      unlines (map (\ (Cmd cs a _ d) -> let  ct = concat (intersperse ", " (map (++ if null a then "" else " " ++ a) cs))
                                        in   ct ++ replicate ((24 - length ct) `max` 2) ' ' ++ d) cs)
-
 
 interpretCommand :: String -> IO Command
 interpretCommand x
@@ -105,7 +100,7 @@ handleCommand int state@(inter, out, ve, te) cmd
                       t <- maybe (return Nothing) (iinfer int ve te) x
                       maybe (return ()) (\u -> putStrLn (render (itprint int u))) t
                       return (Just state)
-       Browse ->  do  putStr (unlines (reverse (nub (map fst te)) ))
+       Browse ->  do  putStr (unlines (reverse (nub (map fst te)) )) -- show the names from the context of the state
                       return (Just state)
        Compile c ->
                   do  state <- case c of
@@ -116,7 +111,7 @@ handleCommand int state@(inter, out, ve, te) cmd
 compileFile :: Interpreter i c v t tinf inf -> State v inf -> String -> IO (State v inf)
 compileFile int state@(inter, out, ve, te) f =
   do
-    x <- readFile f
+    x <- readFile (reverse . dropWhile isSpace . reverse $ f)
     stmts <- parseIO f (many (isparse int)) x
     maybe (return state) (foldM (handleStmt int) state) stmts
 
@@ -139,14 +134,13 @@ data Interpreter i c v t tinf inf =
       isparse :: CharParser () (Stmt i tinf),
       iassume :: State v inf -> (String, tinf) -> IO (State v inf) }
 
- 
 iinfer int d g t =
   case iitype int d g t of
     Left e -> putStrLn e >> return Nothing
     Right v -> return (Just v)
 
-handleStmt :: Interpreter i c v t tinf inf
-              -> State v inf -> Stmt i tinf -> IO (State v inf)
+handleStmt :: Interpreter i c v t tinf inf ->
+              State v inf -> Stmt i tinf -> IO (State v inf)
 handleStmt int state@(inter, out, ve, te) stmt =
   do
     case stmt of
@@ -187,10 +181,7 @@ check int state@(inter, out, ve, te) i t kp k =
                         return (k (y, v))
 
 
-
-
 it = "it"
 
 process :: String -> String
 process = unlines . map (\ x -> "< " ++ x) . lines
-

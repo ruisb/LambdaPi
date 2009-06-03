@@ -12,16 +12,18 @@ vapp x v = case x of
   VNeutral n -> VNeutral $ NApp n v
 
 -- Creates the value corresponding to a free variable.
-vfree :: Name -> Value
-vfree n = VNeutral $ NFree n
+vfree  :: Name -> Value
+vfree  = VNeutral . NFree
 
+vquote :: Int  -> Value
 vquote = VNeutral . NQuote 
 
 -- Evaluate a checkable term.
-cEval :: CTerm -> (NameEnv Value,Env) -> Value
-cEval x d = case x of
+cEval :: CTerm -> (NameEnv Value, Env) -> Value
+cEval x d@(ne, e) = case x of
   Inf  ii       -> iEval ii d
-  Lam vn c      -> VLam vn (\ x -> cEval c (((\(e, d) -> (e,  (x : d))) d)))
+  Lam vn c      -> VLam vn (\x -> cEval c (ne, x:e))
+  -- for hardcoded datatypes
   Zero          -> VZero
   Succ k        -> VSucc  (cEval k d)
   Nil a         -> VNil   (cEval a d)
@@ -32,16 +34,16 @@ cEval x d = case x of
 
 -- Evaluate an inferable term.
 iEval :: ITerm -> (NameEnv Value, Env) -> Value
-iEval x d = case x of
+iEval x d@(ne, e) = case x of
   Ann  c _                   -> cEval c d
   Star                       -> VStar   
-  Pi vn ty ty'               -> VPi vn (cEval ty d) (\ x -> 
-                                    cEval ty' (((\(e, d) -> (e,  (x : d))) d)))
+  Pi vn ty ty'               -> VPi vn (cEval ty d) (\x -> cEval ty' (ne, x:e))
   Free   x                   -> case lookup x (fst d) of 
-                                    Nothing ->  (vfree x)
-                                    Just v -> v 
-  Bound  ii                  -> (snd d) !! ii
+                                    Nothing -> (vfree x)
+                                    Just v  -> v 
+  Bound  ii                  -> e !! ii
   i :$: c                    -> vapp (iEval i d) (cEval c d)
+  -- for hardcoded datatypes
   Nat                        -> VNat
   NatElim m mz ms n          -> rec (cEval n d)
     where
@@ -88,6 +90,7 @@ iSubst ii r  (Pi vn ty ty') = Pi vn (cSubst ii r ty) (cSubst (ii + 1) r ty')
 iSubst ii i' (Bound j)      = if ii == j then i' else Bound j
 iSubst ii i' (Free y)       = Free y
 iSubst ii i' (i :$: c)      = iSubst ii i' i :$: cSubst ii i' c
+-- for hardcoded datatypes
 iSubst ii r  Nat            = Nat
 iSubst ii r  (NatElim m mz ms n)
   = NatElim (cSubst ii r m)
@@ -115,7 +118,7 @@ cSubst :: Int -> ITerm -> CTerm -> CTerm
 cSubst ii i' (Inf i)     = Inf (iSubst ii i' i)
 cSubst ii i' (Lam vn c)  = Lam vn (cSubst (ii + 1) i' c)
 -- PROBLEM:CAPTURE?
-
+-- for hardcoded datatypes
 cSubst ii r  Zero        = Zero
 cSubst ii r  (Succ n)    = Succ (cSubst ii r n)
 cSubst ii r  (Nil a)     = Nil (cSubst ii r a)
@@ -136,6 +139,7 @@ quote ii x = case x of
   VPi vn v f     -> Inf (Pi vn (quote ii v) (quote (ii + 1)
                                (f (vquote ii))))
   VNeutral n     -> Inf (neutralQuote ii n)
+  -- for hardcoded datatypes
   VNat           -> Inf Nat
   VZero          -> Zero
   VSucc n        -> Succ (quote ii n)
@@ -155,6 +159,7 @@ quote ii x = case x of
     NFree v  -> Free v
     NQuote k -> Bound ((ii - k -1) `max` 0)
     NApp n v -> neutralQuote ii n :$: quote ii v
+    -- for hardcoded datatypes
     NNatElim m z s n
       -> NatElim (quote ii m) (quote ii z) (quote ii s)
                  (Inf (neutralQuote ii n))
@@ -175,7 +180,7 @@ quote ii x = case x of
 instance Show Value where
   show = show . quote0
 
-type Type    = Value  
+type Type    = Value
 -- Associate names with types.
 type Context = [(Name, Type)]
 
@@ -207,7 +212,7 @@ iType g (e1 :$: e2)
           VPi _ ty ty' -> do cType g e2 ty
                              return ( ty' (cEval e2 (fst g, [])))
           _            ->  throwError "illegal application"
-
+-- for hardcoded datatypes
 iType g Nat                  = return VStar
 iType g (NatElim m mz ms n)
   = do cType g m (VPi "pix" VNat (const VStar))
