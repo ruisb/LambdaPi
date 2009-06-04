@@ -1,8 +1,5 @@
 module Interpreter.Types where
 
--- The context for the interpreter.
-data IntCtx = IntCtx {readline :: String -> IO (Maybe String), addHistory :: String -> IO ()}
-
 type Name  = String
 
 -- The result of an action. Or succes, or fail with a message.

@@ -81,8 +81,8 @@ lpve =      [("Zero", VZero),
              ("Fin", VLam "iii" (\ n -> VFin n)),
              ("finElim", cEval (Lam "aaaaa" (Lam "bbbbb" (Lam "ccccc" (Lam "ddddd" (Lam "eeeee" (Inf (FinElim (Inf (Bound 4)) (Inf (Bound 3)) (Inf (Bound 2)) (Inf (Bound 1)) (Inf (Bound 0))))))))) ([],[]))]
 
-repLP :: IntCtx -> Bool -> IO ()
-repLP ctx b = readevalprint ctx lp (b, [], lpve, lpte)
+repLP :: Bool -> IO ()
+repLP b = readevalprint lp (b, [], lpve, lpte)
 
 lpassume state@(inter, out, ve, te) x t =
   check lp state x (Ann t (Inf Star))

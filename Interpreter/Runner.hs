@@ -1,6 +1,8 @@
 module Interpreter.Runner where
 import Interpreter.Types
 import LambdaPi.Parser(parseIO)
+import System.Console.Haskeline (getInputLine, runInputT, defaultSettings, InputT)
+import System.Console.Haskeline.History (addHistory)
 
 import Data.Char
 import Data.List
@@ -13,13 +15,13 @@ import qualified Text.PrettyPrint.HughesPJ as PP
 
 
 --  read-eval-print loop
-readevalprint :: IntCtx -> Interpreter i c v t tinf inf -> State v inf -> IO ()
-readevalprint ctx int state@(inter, out, ve, te) =
+readevalprint :: Interpreter i c v t tinf inf -> State v inf -> IO ()
+readevalprint int state@(inter, out, ve, te) =
   let rec int state =
         do
           x <- catch
                  (if inter
-                  then readline ctx (iprompt int)
+                  then readline (iprompt int)
                   else fmap Just getLine)
                  (\_ -> return Nothing)
           case x of
@@ -27,7 +29,8 @@ readevalprint ctx int state@(inter, out, ve, te) =
             Just ""   ->  rec int state
             Just x    ->
               do
-                when inter (addHistory ctx x)
+                -- when inter (put (addHistory get x)) -- FIXME not needed? autoAddHistory is default=true
+                -- see http://hackage.haskell.org/packages/archive/haskeline/0.6.1.6/doc/html/System-Console-Haskeline-History.html
                 c  <- interpretCommand x
                 state' <- handleCommand int state c
                 maybe (return ()) (rec int) state'
@@ -38,6 +41,15 @@ readevalprint ctx int state@(inter, out, ve, te) =
                              "Type :? for help.")
       --  enter loop
       rec int state
+      
+        where
+        readline :: String -> IO (Maybe String)
+        readline s = runInputT defaultSettings $ loop s
+
+        loop :: String -> InputT IO (Maybe String)
+        loop s = getInputLine s
+            
+
 
 data Command = TypeOf String
              | Compile CompileForm
