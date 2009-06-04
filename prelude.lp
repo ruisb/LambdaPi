@@ -1,4 +1,9 @@
 
+data bool :: * where
+   true  :: Bool
+   false :: Bool
+
+
 -- identity and const
 let id    = (\ a x -> x) :: forall (a :: *) . a -> a 
 let const = (\ a b x y -> x) :: forall (a :: *) (b :: *) . a -> b -> a

@@ -1,4 +1,7 @@
 module Interpreter.Types where
+import Data.Map (Map)
+
+
 
 type Name  = String
 
@@ -10,8 +13,10 @@ type Ctx inf = [(Name, inf)]
 type State v inf = (Bool, String, NameEnv v, Ctx inf)
 
 data Stmt i tinf = Let String i           --  let x = t
-                 | Assume [(String,tinf)] --  assume x :: t, assume x :: *
+                 | Assume [(String, tinf)] --  assume x :: t, assume x :: *
                  | Eval i
                  | PutStrLn String        --  lhs2TeX hacking, allow to print "magic" string
                  | Out String             --  more lhs2TeX hacking, allow to print to files
+                 | Data String i (Map String i) -- Data <datatype name> <datatype dependent space>
+                                                   -- mapping: Ctor-name -> type.
   deriving (Show)

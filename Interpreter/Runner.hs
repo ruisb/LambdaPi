@@ -12,6 +12,7 @@ import Text.ParserCombinators.Parsec hiding (parse, State)
 import qualified Text.ParserCombinators.Parsec as P
 import Text.PrettyPrint.HughesPJ hiding (parens)
 import qualified Text.PrettyPrint.HughesPJ as PP
+import qualified Data.Map as Map
 
 
 --  read-eval-print loop
@@ -161,6 +162,8 @@ handleStmt int state@(inter, out, ve, te) stmt =
         Eval e     -> checkEval it e
         PutStrLn x -> putStrLn x >> return state
         Out f      -> return (inter, f, ve, te)
+        Data name t m -> error ("found Data with:: name:" ++ name ++ " ,mappings "++ (show (Map.keys m)))
+        --FIXME
   where
     --  checkEval :: String -> i -> IO (State v inf)
     checkEval i t =

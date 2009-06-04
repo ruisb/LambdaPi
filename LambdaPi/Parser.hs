@@ -3,10 +3,15 @@ import LambdaPi.Types
 import Interpreter.Types
 
 import Data.List
+import Data.Map (Map)
+import qualified Data.Map as Map
+
+-- parser imports
 import Text.ParserCombinators.Parsec hiding (parse, State)
 import qualified Text.ParserCombinators.Parsec as P
 import Text.ParserCombinators.Parsec.Token
 import Text.ParserCombinators.Parsec.Language
+import Text.ParserCombinators.Parsec.Perm ((<$$>))
 
 -------------------------------------------------------------------------------
 -- Parse the core language.
@@ -18,13 +23,24 @@ lambdaPi = makeTokenParser (haskellStyle
                                                 , "let"
                                                 , "assume"
                                                 , "putStrLn"
-                                                , "out"] })
+                                                , "out"
+                                                , "data" -- data declaration.
+                                                , "where" -- FIXME needed?
+                                                ] })
 
 parseStmt :: [String] -> CharParser () (Stmt ITerm CTerm)
 parseStmt e =
       do
+        reserved lambdaPi "data"
+        name <- identifier lambdaPi -- name of the data
+        reserved lambdaPi "::"
+        t <- parseITerm 0 e -- FIXME this ok?
+        reserved lambdaPi "where"
+        ctors <- parseDataCtors e
+        return (Data name t ctors)
+  <|> do
         reserved lambdaPi "let"
-        x <- identifier lambdaPi
+        x <- identifier lambdaPi -- name of the var
         reserved lambdaPi "="
         t <- parseITerm 0 e
         return (Let x t)
@@ -42,6 +58,20 @@ parseStmt e =
         return (Out x)
   <|> fmap Eval (parseITerm 0 e)
 
+-- Parse the constructors of a data type.
+parseDataCtors :: [String] -> CharParser () (Map String ITerm)
+parseDataCtors e
+  = 
+    do
+       m <- many $ do
+             name <- identifier lambdaPi -- name of the data
+             reserved lambdaPi "::"
+             t <- parseITerm 0 e -- FIXME this ok?
+             return (name, t)
+       return (Map.fromList m)
+       
+      
+      
 parseBindings :: Bool -> [String] -> CharParser () ([String], [CTerm])
 parseBindings b e 
   = (let rec :: [String] -> [CTerm] -> CharParser () ([String], [CTerm])
