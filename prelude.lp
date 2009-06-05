@@ -1,7 +1,7 @@
 
-data bool :: * where
-   true  :: Bool
-   false :: Bool
+-- data bool :: * where
+--   true  :: Bool
+--   false :: Bool
 
 
 -- identity and const

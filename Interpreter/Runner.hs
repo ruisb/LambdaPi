@@ -30,7 +30,7 @@ readevalprint int state@(inter, out, ve, te) =
             Just ""   ->  rec int state
             Just x    ->
               do
-                -- when inter (put (addHistory get x)) -- FIXME not needed? autoAddHistory is default=true
+                -- when inter (addHistory x) -- FIXME not needed? autoAddHistory is default=true
                 -- see http://hackage.haskell.org/packages/archive/haskeline/0.6.1.6/doc/html/System-Console-Haskeline-History.html
                 c  <- interpretCommand x
                 state' <- handleCommand int state c
@@ -57,8 +57,9 @@ data Command = TypeOf String
              | Browse
              | Quit
              | Help
-             | Noop
+             | Noop -- No operation
 
+-- The source where to compile from.
 data CompileForm = CompileInteractive  String
                  | CompileFile         String
 
@@ -74,6 +75,7 @@ commands
        Cmd [":quit"]        ""        (const Quit)   "exit interpreter",
        Cmd [":help",":?"]   ""        (const Help)   "display this list of commands" ]
 
+-- The help text.
 helpTxt :: [InteractiveCommand] -> String
 helpTxt cs
   =  "List of commands:  Any command may be abbreviated to :c where\n" ++
@@ -102,6 +104,7 @@ interpretCommand x
      else
        return (Compile (CompileInteractive x))
 
+-- Handle a command that the user has given (Quit, Browse etc.)
 handleCommand :: Interpreter i c v t tinf inf -> State v inf -> Command -> IO (Maybe (State v inf))
 handleCommand int state@(inter, out, ve, te) cmd
   =  case cmd of
@@ -121,6 +124,7 @@ handleCommand int state@(inter, out, ve, te) cmd
                                  CompileFile f        -> compileFile int state f
                       return (Just state)
 
+-- Compile a file
 compileFile :: Interpreter i c v t tinf inf -> State v inf -> String -> IO (State v inf)
 compileFile int state@(inter, out, ve, te) f =
   do
@@ -128,6 +132,7 @@ compileFile int state@(inter, out, ve, te) f =
     stmts <- parseIO f (many (isparse int)) x
     maybe (return state) (foldM (handleStmt int) state) stmts
 
+-- Compile from command line.
 compilePhrase :: Interpreter i c v t tinf inf -> State v inf -> String -> IO (State v inf)
 compilePhrase int state@(inter, out, ve, te) x =
   do
@@ -152,6 +157,7 @@ iinfer int d g t =
     Left e -> putStrLn e >> return Nothing
     Right v -> return (Just v)
 
+-- Handle a statement that is parsed.
 handleStmt :: Interpreter i c v t tinf inf ->
               State v inf -> Stmt i tinf -> IO (State v inf)
 handleStmt int state@(inter, out, ve, te) stmt =
@@ -169,6 +175,7 @@ handleStmt int state@(inter, out, ve, te) stmt =
     checkEval i t =
       check int state i t
         (\ (y, v) -> do
+                       -- FIXME limited space thing?
                        --  ugly, but we have limited space in the paper
                        --  usually, you'd want to have the bound identifier *and*
                        --  the result of evaluation
@@ -187,7 +194,7 @@ check int state@(inter, out, ve, te) i t kp k =
                   case x of
                     Nothing  ->
                       do
-                        --  putStrLn "type error"
+                        --  putStrLn "type error" -- FIXME old?
                         return state
                     Just y   ->
                       do
@@ -195,7 +202,7 @@ check int state@(inter, out, ve, te) i t kp k =
                         kp (y, v)
                         return (k (y, v))
 
-
+-- FIXME wherefore this it? (it's used at checkEval function)
 it = "it"
 
 process :: String -> String

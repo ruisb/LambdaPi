@@ -11,7 +11,7 @@ import Text.ParserCombinators.Parsec hiding (parse, State)
 import qualified Text.ParserCombinators.Parsec as P
 import Text.ParserCombinators.Parsec.Token
 import Text.ParserCombinators.Parsec.Language
-import Text.ParserCombinators.Parsec.Perm ((<$$>))
+
 
 -------------------------------------------------------------------------------
 -- Parse the core language.
@@ -38,7 +38,8 @@ parseStmt e =
         reserved lambdaPi "where"
         ctors <- parseDataCtors e
         return (Data name t ctors)
-  <|> do
+  <|>
+      do
         reserved lambdaPi "let"
         x <- identifier lambdaPi -- name of the var
         reserved lambdaPi "="
