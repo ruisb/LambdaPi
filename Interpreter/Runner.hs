@@ -128,7 +128,7 @@ handleCommand int state@(inter, out, ve, te) cmd
                       return (Just state)
 
 -- Compile a file
-compileFile :: Interpreter i c v t tinf inf -> State v inf -> String -> IO (State v inf)
+compileFile :: Interpreter i c v t tinf inf -> State v inf -> FilePath -> IO (State v inf)
 compileFile int state@(inter, out, ve, te) f =
   do
     x <- readFile (reverse . dropWhile isSpace . reverse $ f)

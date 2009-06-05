@@ -6,6 +6,7 @@ import LambdaPi.Functions
 import LambdaPi.Parser
 import LambdaPi.Printer
 
+-- The LambdaPi Interpreter
 lp :: Interpreter ITerm CTerm Value Value CTerm Value
 lp = I { iname = "lambda-Pi",
          iprompt = "LP> ",
@@ -85,8 +86,16 @@ lpve =      [("Zero", VZero),
              ("Fin", VLam "iii" (\n -> VFin n)),
              ("finElim", cEval (Lam "aaaaa" (Lam "bbbbb" (Lam "ccccc" (Lam "ddddd" (Lam "eeeee" (Inf (FinElim (Inf (Bound 4)) (Inf (Bound 3)) (Inf (Bound 2)) (Inf (Bound 1)) (Inf (Bound 0))))))))) ([],[]))]
 
-repLP :: Bool -> IO ()
-repLP b = readevalprint lp (b, [], lpve, lpte)
+repLP :: Bool -> Maybe FilePath -> IO ()
+repLP b file = getstate >>= readevalprint lp
+  where
+  -- If path is specified, first compile file.
+  getstate = case file of
+            Just path -> compileFile lp initstate path
+            Nothing -> return initstate
+    where
+    initstate = (b, [], lpve, lpte)
+  
 
 lpassume state@(inter, out, ve, te) x t =
   check lp state x (Ann t (Inf Star))
