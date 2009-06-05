@@ -34,7 +34,7 @@ parseStmt e =
         reserved lambdaPi "data"
         name <- identifier lambdaPi -- name of the data
         reserved lambdaPi "::"
-        t <- parseITerm 0 e -- FIXME this ok?
+        t <- parseCTerm 0 e -- FIXME this ok?
         reserved lambdaPi "where"
         ctors <- parseDataCtors e
         return (Data name t ctors)
@@ -60,14 +60,16 @@ parseStmt e =
   <|> fmap Eval (parseITerm 0 e)
 
 -- Parse the constructors of a data type.
-parseDataCtors :: [String] -> CharParser () (Map String ITerm)
+parseDataCtors :: [String] -> CharParser () (Map String CTerm)
 parseDataCtors e
   = 
     do
        m <- many $ do
+             
              name <- identifier lambdaPi -- name of the data
              reserved lambdaPi "::"
-             t <- parseITerm 0 e -- FIXME this ok?
+             t <- parseCTerm 0 e -- FIXME this ok?
+             
              return (name, t)
        return (Map.fromList m)
        

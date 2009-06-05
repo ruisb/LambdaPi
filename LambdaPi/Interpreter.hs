@@ -25,6 +25,7 @@ lpte :: Ctx Value
 lpte =      [("Zero", VNat),
              ("Succ", VPi "pp" VNat (\_  -> VNat)),
              ("Nat", VStar),
+             
              ("natElim", VPi "pp" (VPi "qq" VNat (\_  -> VStar)) (\m ->
                                VPi "rr" (m `vapp` VZero) (\_  ->
                                VPi "ss" (VPi "tt" VNat (\k -> VPi "uu" (m `vapp` k) (\_ -> (m `vapp` (VSucc k))))) ( \_ ->
@@ -69,6 +70,7 @@ lpve :: Ctx Value
 lpve =      [("Zero", VZero),
              ("Succ", VLam "aa" (\n -> VSucc n)),
              ("Nat", VNat),
+             
              ("natElim", cEval (Lam "aa" (Lam "bb" (Lam "cc" (Lam "dd" (Inf (NatElim (Inf (Bound 3)) (Inf (Bound 2)) (Inf (Bound 1)) (Inf (Bound 0)))))))) ([], [])),
              ("Nil", VLam "bb" (\a -> VNil a)),
              ("Cons", VLam "cc" (\a -> VLam "dd" (\n -> VLam "ee" (\x -> VLam "ff" (\xs ->
