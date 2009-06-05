@@ -1,33 +1,33 @@
-module LambdaPi.Printer where
+module LambdaPi.Printer (iPrint, cPrint) where
 import Interpreter.Types
-import LambdaPi.Types
-import Control.Monad.Reader
+import LambdaPi.Types 
+import Control.Monad.Reader (Reader, runReader, local, ask)
 import Control.Monad (liftM, liftM2)
 
 import Prelude hiding (print)
-import Text.PrettyPrint.HughesPJ hiding (parens)
-import qualified Text.PrettyPrint.HughesPJ as PP
+import Text.PrettyPrint.HughesPJ (Doc)
+import qualified Text.PrettyPrint.HughesPJ as PP (parens, int, sep, text, nest, (<>))
 
 -- Monad versions of the used functions
 -- Try to keep naming conventions:
 -- http://haskell.org/ghc/docs/latest/html/libraries/base/Control-Monad.html#3
-infixl 6 <<>>
-(<<>>) = liftM2 (<>)
+infixl 6 <>
+(<>) = liftM2 (PP.<>)
 
 textM :: String -> Reader [String] Doc
-textM = return . text
+textM = return . PP.text
 
 mparensIf :: Bool -> Reader [String] Doc -> Reader [String] Doc
 mparensIf = liftM . parensIf
 
 msep :: [Reader [String] Doc] -> Reader [String] Doc
-msep = (liftM $ sep) . sequence
+msep = (liftM $ PP.sep) . sequence
 
 intM :: Int -> Reader [String] Doc
-intM = return . int
+intM = return . PP.int
 
 mnest :: (Monad m) => Int -> m Doc -> m Doc
-mnest x = liftM $ nest x
+mnest x = liftM $ PP.nest x
 
 
 iPrint :: ITerm -> Doc
@@ -38,18 +38,16 @@ cPrint t = runReader (cPrintM 0 t) []
 
 iPrintM :: Int -> ITerm -> Reader [String] Doc
 iPrintM p x = case x of
-  Ann c ty        -> mparensIf (p > 1) (cPrintM 2 c <<>> textM " :: " <<>> cPrintM 0 ty)
+  Ann c ty        -> mparensIf (p > 1) (cPrintM 2 c <> textM " :: " <> cPrintM 0 ty)
   Star            -> textM "*"
 
   Pi vn d (Inf (Pi vn' d' r))
                   -> local (\x -> vn':vn:x) $
                       mparensIf (p > 0) (nestedForall 2  [(1,vn', d'), (0,vn, d)] r)
 
-  Pi vn d r       -> do
-                        
-                         mparensIf (p > 0) (msep [textM "forall " <<>> textM vn
-                                       <<>> textM " :: " <<>> cPrintM 0 d
-                                       <<>> textM " .", (local (\x -> vn:x) $ cPrintM 0 r)])
+  Pi vn d r       -> mparensIf (p > 0) (msep [textM "forall " <> textM vn
+                                       <> textM " :: " <> cPrintM 0 d
+                                       <> textM " .", (local (\x -> vn:x) $ cPrintM 0 r)])
   Bound k         -> do
                        xs <- ask
                        textM (xs !! k)
@@ -76,8 +74,9 @@ cPrintM :: Int -> CTerm -> Reader [String] Doc
 cPrintM p  x = case x of
 
    Inf i         -> iPrintM p i
-   Lam vn c      -> do
-                       mparensIf (p > 0) $ textM "\\ " <<>> textM vn <<>> textM " -> " <<>> (local (\x -> vn:x) $ cPrintM 0 c)
+   Lam vn c      -> mparensIf (p > 0) $ textM "\\ " <> textM vn
+                                        <> textM " -> "
+                                        <> (local (\x -> vn:x) $ cPrintM 0 c)
    Zero          -> fromNat 0 Zero
    Succ n        -> fromNat 0 (Succ n)
    Nil a         -> iPrintM p (Free "Nil"   :$: a)
@@ -95,19 +94,15 @@ parensIf False = id
 fromNat :: Int -> CTerm -> Reader [String] Doc
 fromNat n Zero     = intM n
 fromNat n (Succ k) = fromNat (n + 1) k
-fromNat n t        = mparensIf True (intM n <<>> textM " + " <<>> cPrintM 0 t)
+fromNat n t        = mparensIf True (intM n <> textM " + " <> cPrintM 0 t)
 
-
-                     
 nestedForall :: Int -> [(Int, String, CTerm)] -> CTerm -> Reader [String] Doc
-nestedForall ii ds (Inf (Pi vn d r)) = do
-                                         local (\x -> vn:x) $
-                                          nestedForall (ii+1) ((ii,vn, d) : ds) r
-nestedForall _  ds x                 = msep [textM "forall "
-                                            <<>> msep [mparensIf True (textM vn <<>> textM " :: "
-                                            <<>> (local (\xs -> drop (length ds-ii) xs) $ cPrintM 0 d)) | (ii,vn,d) <- reverse ds   ]
-                                            <<>> textM " .", cPrintM 0 x]
-  where
-  cPrintM' :: Int -> [(Int, String, CTerm)] -> CTerm -> Reader [String] Doc
-  cPrintM' ii ds d = local (\xs -> drop (length ds-ii) xs) $ cPrintM 0 d
+nestedForall ii ds (Inf (Pi vn d r)) = local (\x -> vn:x) $
+                                        nestedForall (ii+1) ((ii,vn, d) : ds) r
+nestedForall _  ds x
+  = msep [textM "forall "
+         <> msep [mparensIf True (textM vn <> textM " :: "
+         <> (local (\xs -> drop (length ds-ii) xs) $ cPrintM 0 d)) | (ii,vn,d) <- reverse ds   ]
+         <> textM " .", cPrintM 0 x]
+
 
