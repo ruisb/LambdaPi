@@ -1,88 +1,113 @@
 module LambdaPi.Printer where
 import Interpreter.Types
 import LambdaPi.Types
+import Control.Monad.Reader
+import Control.Monad (liftM, liftM2)
 
 import Prelude hiding (print)
 import Text.PrettyPrint.HughesPJ hiding (parens)
 import qualified Text.PrettyPrint.HughesPJ as PP
 
--------------------------------------------------------------------------------
--- Print functions.
--------------------------------------------------------------------------------
+-- Monad versions of the used functions
+-- Try to keep naming conventions:
+-- http://haskell.org/ghc/docs/latest/html/libraries/base/Control-Monad.html#3
+infixl 6 <<>>
+(<<>>) = liftM2 (<>)
 
--- Print an interable term.
+textM :: String -> Reader [String] Doc
+textM = return . text
+
+mparensIf :: Bool -> Reader [String] Doc -> Reader [String] Doc
+mparensIf = liftM . parensIf
+
+msep :: [Reader [String] Doc] -> Reader [String] Doc
+msep = (liftM $ sep) . sequence
+
+intM :: Int -> Reader [String] Doc
+intM = return . int
+
+mnest :: (Monad m) => Int -> m Doc -> m Doc
+mnest x = liftM $ nest x
+
+
 iPrint :: ITerm -> Doc
-iPrint = iPrint' 0 []
--- Print a checkable term.
-cPrint :: CTerm -> Doc
-cPrint = cPrint' 0 []
+iPrint t = runReader (iPrintM 0 t) []
+                 
+cPrint ::  CTerm -> Doc
+cPrint t = runReader (cPrintM 0 t) []
 
--- Print an interable term.
-iPrint' :: Int -> [String] -> ITerm -> Doc
-iPrint' p ctx x = case x of
-  Ann c ty        -> parensIf (p > 1)
-                     (cPrint' 2 ctx c <> text " :: " <> cPrint' 0 ctx ty)
-  Star            -> text "*"
+iPrintM :: Int -> ITerm -> Reader [String] Doc
+iPrintM p x = case x of
+  Ann c ty        -> mparensIf (p > 1) (cPrintM 2 c <<>> textM " :: " <<>> cPrintM 0 ty)
+  Star            -> textM "*"
+
   Pi vn d (Inf (Pi vn' d' r))
-                  -> parensIf (p > 0)
-                     (nestedForall 2 (vn':vn:ctx) [(1,vn', d'), (0,vn, d)] r)
-  Pi vn d r       -> parensIf (p > 0) (sep [text "forall " <> text vn
-                                      <> text " :: " <> cPrint' 0 ctx d
-                                      <> text " .", cPrint' 0 (vn:ctx) r])
-  Bound k         -> text (ctx !! k)
-  Free s          -> text s
-  i :$: c         -> parensIf (p > 2)
-                     (sep [iPrint' 2 ctx i, nest 2 (cPrint' 3 ctx c)])
-  Nat             -> text "Nat"
-  NatElim m z s n -> iPrint' p ctx (Free "natElim" :$: m :$: z :$: s :$: n)
-  Vec a n         -> iPrint' p ctx (Free "Vec" :$: a :$: n)
+                  -> local (\x -> vn':vn:x) $
+                      mparensIf (p > 0) (nestedForall 2  [(1,vn', d'), (0,vn, d)] r)
+
+  Pi vn d r       -> do
+                        
+                         mparensIf (p > 0) (msep [textM "forall " <<>> textM vn
+                                       <<>> textM " :: " <<>> cPrintM 0 d
+                                       <<>> textM " .", (local (\x -> vn:x) $ cPrintM 0 r)])
+  Bound k         -> do
+                       xs <- ask
+                       textM (xs !! k)
+  Free s          -> textM s
+  i :$: c         -> mparensIf (p > 2)
+                     (msep [iPrintM 2 i, mnest 2 (cPrintM 3 c)])
+  Nat             -> textM "Nat"
+  NatElim m z s n -> iPrintM p (Free "natElim" :$: m :$: z :$: s :$: n)
+  Vec a n         -> iPrintM p (Free "Vec" :$: a :$: n)
   VecElim a m mn mc n xs
-                  -> iPrint' p ctx
+                  -> iPrintM p
                      (Free "vecElim" :$: a :$: m :$: mn :$: mc :$: n :$: xs)
-  Eq a x y        -> iPrint' p ctx (Free "Eq" :$: a :$: x :$: y)
+  Eq a x y        -> iPrintM p (Free "Eq" :$: a :$: x :$: y)
   EqElim a m mr x y eq
-                  -> iPrint' p ctx
+                  -> iPrintM p 
                      (Free "eqElim" :$: a :$: m :$: mr :$: x :$: y :$: eq)
-  Fin n           -> iPrint' p ctx (Free "Fin" :$: n)
+  Fin n           -> iPrintM p (Free "Fin" :$: n)
   FinElim m mz ms n f
-                  -> iPrint' p ctx
-                     (Free "finElim" :$: m :$: mz :$: ms :$: n :$: f)
+                  ->  iPrintM p 
+                      (Free "finElim" :$: m :$: mz :$: ms :$: n :$: f)
 
--- Print a checkable term.
-cPrint' :: Int -> [String] -> CTerm -> Doc
-cPrint' p ctx x = case x of
-   Inf i         -> iPrint' p ctx i
-   Lam vn c      -> parensIf (p > 0) $
-                    text "\\ " <> text vn <> text " -> " <> cPrint' 0 (vn:ctx) c
-   Zero          -> fromNat ctx Zero
-   Succ n        -> fromNat ctx (Succ n)
-   Nil a         -> iPrint' p ctx (Free "Nil" :$: a)
-   Cons a n x xs -> iPrint' p ctx (Free "Cons" :$: a :$: n :$: x :$: xs)
-   Refl a x      -> iPrint' p ctx (Free "Refl" :$: a :$: x)
-   FZero n       -> iPrint' p ctx (Free "FZero" :$: n)
-   FSucc n f     -> iPrint' p ctx (Free "FSucc" :$: n :$: f)
 
--- Print (..) under a condition
+cPrintM :: Int -> CTerm -> Reader [String] Doc
+cPrintM p  x = case x of
+
+   Inf i         -> iPrintM p i
+   Lam vn c      -> do
+                       mparensIf (p > 0) $ textM "\\ " <<>> textM vn <<>> textM " -> " <<>> (local (\x -> vn:x) $ cPrintM 0 c)
+   Zero          -> fromNat 0 Zero
+   Succ n        -> fromNat 0 (Succ n)
+   Nil a         -> iPrintM p (Free "Nil"   :$: a)
+   Cons a n x xs -> iPrintM p (Free "Cons"  :$: a :$: n :$: x :$: xs)
+   Refl a x      -> iPrintM p (Free "Refl"  :$: a :$: x)
+   FZero n       -> iPrintM p (Free "FZero" :$: n)
+   FSucc n f     -> iPrintM p (Free "FSucc" :$: n :$: f)
+
+
+
 parensIf :: Bool -> Doc -> Doc
 parensIf True  = PP.parens
 parensIf False = id
 
--- Print a number which is represented in peano style, as a normal number.
-fromNat :: [String] -> CTerm -> Doc
-fromNat = fromNat' 0
-  where
-  fromNat' :: Int -> [String] -> CTerm -> Doc
-  fromNat' n ctx Zero     = int n
-  fromNat' n ctx (Succ k) = fromNat' (n + 1) ctx k
-  fromNat' n ctx t        = parensIf True (int n <> text " + " <> cPrint' 0 ctx t)
+fromNat :: Int -> CTerm -> Reader [String] Doc
+fromNat n Zero     = intM n
+fromNat n (Succ k) = fromNat (n + 1) k
+fromNat n t        = mparensIf True (intM n <<>> textM " + " <<>> cPrintM 0 t)
 
-nestedForall :: Int -> [String] -> [(Int,String, CTerm)] -> CTerm -> Doc
-nestedForall ii ctx ds (Inf (Pi vn d r)) = nestedForall (ii+1) (vn:ctx) 
-                                                        ((ii,vn, d) : ds) r
-nestedForall _  ctx ds x                 = 
-  sep [text "forall " 
-    <> sep [parensIf True (text vn 
-         <> text " :: " 
-         <> cPrint' 0 (drop (length ds-ii) ctx) d) | (ii,vn,d) <- reverse ds] 
-    <> text " .", cPrint' 0 ctx x]
+
+                     
+nestedForall :: Int -> [(Int, String, CTerm)] -> CTerm -> Reader [String] Doc
+nestedForall ii ds (Inf (Pi vn d r)) = do
+                                         local (\x -> vn:x) $
+                                          nestedForall (ii+1) ((ii,vn, d) : ds) r
+nestedForall _  ds x                 = msep [textM "forall "
+                                            <<>> msep [mparensIf True (textM vn <<>> textM " :: "
+                                            <<>> (local (\xs -> drop (length ds-ii) xs) $ cPrintM 0 d)) | (ii,vn,d) <- reverse ds   ]
+                                            <<>> textM " .", cPrintM 0 x]
+  where
+  cPrintM' :: Int -> [(Int, String, CTerm)] -> CTerm -> Reader [String] Doc
+  cPrintM' ii ds d = local (\xs -> drop (length ds-ii) xs) $ cPrintM 0 d
 
