@@ -1,7 +1,7 @@
 data Nat2 :: * where
-  Zero2 :: Nat2
+  Zero2 :: Nat2,
   Suc2 :: Nat2 -> Nat2
-  -- TODO 2nd wont parse OK
+  --FIXME temp with , seperated
 
 
 let plus =

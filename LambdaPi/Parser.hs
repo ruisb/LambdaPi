@@ -64,13 +64,14 @@ parseDataCtors :: [String] -> CharParser () (Map String CTerm)
 parseDataCtors e
   = 
     do
-       m <- many $ do
+       m <- sepBy ( do
              
              name <- identifier lambdaPi -- name of the data
              reserved lambdaPi "::"
              t <- parseCTerm 0 e -- FIXME this ok?
              
-             return (name, t)
+             return (name, t))
+             (reserved lambdaPi ",") --FIXME temp with , seperated
        return (Map.fromList m)
        
       
@@ -169,10 +170,10 @@ parseLam e =
 
 toNat :: Integer -> ITerm
 toNat n = Ann (toNat' n) (Inf Nat)
-
-toNat' :: Integer -> CTerm
-toNat' 0  =  Zero
-toNat' n  =  Succ (toNat' (n - 1))
+  where
+  toNat' :: Integer -> CTerm
+  toNat' 0  =  Zero
+  toNat' n  =  Succ (toNat' (n - 1))
 
 
 parseIO :: String -> CharParser () a -> String -> IO (Maybe a)
