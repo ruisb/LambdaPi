@@ -4,6 +4,9 @@ lp:
 st:
 	ghc --make -o st MainST.hs
 
+original:
+	ghc --make -o original OriginalCode/OriginalLambdaPi.hs
+
 clean:
 	rm */*.o
 	rm */*.hi

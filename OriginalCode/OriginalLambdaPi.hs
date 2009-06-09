@@ -17,6 +17,7 @@
 {-# LINE 171 "LP.lhs" #-}
   import System.Console.Readline
   import System.IO hiding (print)
+  import Debug.Trace
 {-# LINE 176 "LP.lhs" #-}
   putstrln x = putStrLn x
 {-# LINE 5 "Parser.lhs" #-}
@@ -876,9 +877,10 @@
   iEval_ (Bound_  ii)    d  =  (snd d) !! ii
   iEval_ (i :$: c)       d  =  vapp_ (iEval_ i d) (cEval_ c d)
 {-# LINE 2 "iEval_Nat.lhs" #-}
-  iEval_ Nat_                  d  =  VNat_
+  iEval_ Nat_                  d  =  trace "\n**Nat**\n" $ VNat_
   iEval_ (NatElim_ m mz ms n)  d 
-    =  let  mzVal = cEval_ mz d
+    =  trace ("\n**NatElim*"++show m ++ show mz ++ show ms ++ show n ++ "**\n") $
+       let  mzVal = cEval_ mz d
             msVal = cEval_ ms d
             rec nVal =
               case nVal of
@@ -1040,7 +1042,7 @@
   boundfree_ ii x             =  Free_ x
 {-# LINE 1751 "LP.lhs" #-}
   instance Show Value_ where
-    show = show . quote0_
+    show = show . trace "\n**Show**\n" id . quote0_
 {-# LINE 1775 "LP.lhs" #-}
   type Type_     =  Value_  
   type Context_    =  [(Name, Type_)]
