@@ -1,7 +1,11 @@
 module Interpreter.Runner where
 import Interpreter.Types
-
 import LambdaPi.Parser(parseIO)
+import System.Console.Haskeline (getInputLine, runInputT, defaultSettings, InputT)
+import System.Console.Haskeline.History (addHistory)
+
+--FIXME temp
+import Debug.Trace (trace)
 
 import Data.Char
 import Data.List
@@ -11,17 +15,17 @@ import Text.ParserCombinators.Parsec hiding (parse, State)
 import qualified Text.ParserCombinators.Parsec as P
 import Text.PrettyPrint.HughesPJ hiding (parens)
 import qualified Text.PrettyPrint.HughesPJ as PP
-
+import qualified Data.Map as Map
 
 
 --  read-eval-print loop
-readevalprint :: IntCtx -> Interpreter i c v t tinf inf -> State v inf -> IO ()
-readevalprint ctx int state@(inter, out, ve, te) =
+readevalprint :: Interpreter i c v t tinf inf -> State v inf -> IO ()
+readevalprint int state@(inter, out, ve, te) =
   let rec int state =
         do
           x <- catch
                  (if inter
-                  then readline ctx (iprompt int)
+                  then readline (iprompt int)
                   else fmap Just getLine)
                  (\_ -> return Nothing)
           case x of
@@ -29,7 +33,8 @@ readevalprint ctx int state@(inter, out, ve, te) =
             Just ""   ->  rec int state
             Just x    ->
               do
-                when inter (addHistory ctx x)
+                -- when inter (addHistory x) -- FIXME not needed? autoAddHistory is default=true
+                -- see http://hackage.haskell.org/packages/archive/haskeline/0.6.1.6/doc/html/System-Console-Haskeline-History.html
                 c  <- interpretCommand x
                 state' <- handleCommand int state c
                 maybe (return ()) (rec int) state'
@@ -40,20 +45,28 @@ readevalprint ctx int state@(inter, out, ve, te) =
                              "Type :? for help.")
       --  enter loop
       rec int state
+      
+        where
+        readline :: String -> IO (Maybe String)
+        readline s = runInputT defaultSettings $ loop s
+
+        loop :: String -> InputT IO (Maybe String)
+        loop s = getInputLine s
+            
+
 
 data Command = TypeOf String
              | Compile CompileForm
              | Browse
              | Quit
              | Help
-             | Noop
+             | Noop -- No operation
 
+-- The source where to compile from.
 data CompileForm = CompileInteractive  String
                  | CompileFile         String
 
 data InteractiveCommand = Cmd [String] String (String -> Command) String
-
-
 
 
 commands :: [InteractiveCommand]
@@ -65,6 +78,7 @@ commands
        Cmd [":quit"]        ""        (const Quit)   "exit interpreter",
        Cmd [":help",":?"]   ""        (const Help)   "display this list of commands" ]
 
+-- The help text.
 helpTxt :: [InteractiveCommand] -> String
 helpTxt cs
   =  "List of commands:  Any command may be abbreviated to :c where\n" ++
@@ -75,7 +89,6 @@ helpTxt cs
      ++
      unlines (map (\ (Cmd cs a _ d) -> let  ct = concat (intersperse ", " (map (++ if null a then "" else " " ++ a) cs))
                                        in   ct ++ replicate ((24 - length ct) `max` 2) ' ' ++ d) cs)
-
 
 interpretCommand :: String -> IO Command
 interpretCommand x
@@ -94,6 +107,7 @@ interpretCommand x
      else
        return (Compile (CompileInteractive x))
 
+-- Handle a command that the user has given (Quit, Browse etc.)
 handleCommand :: Interpreter i c v t tinf inf -> State v inf -> Command -> IO (Maybe (State v inf))
 handleCommand int state@(inter, out, ve, te) cmd
   =  case cmd of
@@ -105,7 +119,7 @@ handleCommand int state@(inter, out, ve, te) cmd
                       t <- maybe (return Nothing) (iinfer int ve te) x
                       maybe (return ()) (\u -> putStrLn (render (itprint int u))) t
                       return (Just state)
-       Browse ->  do  putStr (unlines (reverse (nub (map fst te)) ))
+       Browse ->  do  putStr (unlines (reverse (nub (map fst te)) )) -- show the names from the context of the state
                       return (Just state)
        Compile c ->
                   do  state <- case c of
@@ -113,13 +127,15 @@ handleCommand int state@(inter, out, ve, te) cmd
                                  CompileFile f        -> compileFile int state f
                       return (Just state)
 
-compileFile :: Interpreter i c v t tinf inf -> State v inf -> String -> IO (State v inf)
+-- Compile a file
+compileFile :: Interpreter i c v t tinf inf -> State v inf -> FilePath -> IO (State v inf)
 compileFile int state@(inter, out, ve, te) f =
   do
-    x <- readFile f
+    x <- readFile (reverse . dropWhile isSpace . reverse $ f)
     stmts <- parseIO f (many (isparse int)) x
     maybe (return state) (foldM (handleStmt int) state) stmts
 
+-- Compile from command line.
 compilePhrase :: Interpreter i c v t tinf inf -> State v inf -> String -> IO (State v inf)
 compilePhrase int state@(inter, out, ve, te) x =
   do
@@ -139,14 +155,14 @@ data Interpreter i c v t tinf inf =
       isparse :: CharParser () (Stmt i tinf),
       iassume :: State v inf -> (String, tinf) -> IO (State v inf) }
 
- 
 iinfer int d g t =
   case iitype int d g t of
     Left e -> putStrLn e >> return Nothing
     Right v -> return (Just v)
 
-handleStmt :: Interpreter i c v t tinf inf
-              -> State v inf -> Stmt i tinf -> IO (State v inf)
+-- Handle a statement that is parsed.
+handleStmt :: Interpreter i c v t tinf inf ->
+              State v inf -> Stmt i tinf -> IO (State v inf)
 handleStmt int state@(inter, out, ve, te) stmt =
   do
     case stmt of
@@ -155,11 +171,24 @@ handleStmt int state@(inter, out, ve, te) stmt =
         Eval e     -> checkEval it e
         PutStrLn x -> putStrLn x >> return state
         Out f      -> return (inter, f, ve, te)
-  where
+        Data name t m -> trace ( "found Data with:: name:" ++ name
+         -- ++ " ,type: "     ++ printI t
+         -- ++ " ,mappings:"  ++ (Map.showTreeWith (\k a -> show k ++ "[" ++ printI a ++ "]," ) True True m)) -- FIXME remove trace
+          ++ "#mappings: " ++ (show $ Map.size m))
+         -- (return ((name, t) : te)) -- add to typing env.
+         --(return (inter, out, ve, (name, (iitype int) ve te t ) : te))
+           $ (iassume int) state (name, t)
+        -- FIXME
+    where
+    --FIXME temp
+    printI = PP.render . icprint int . iquote int . (ieval int) ve
+    
+    
     --  checkEval :: String -> i -> IO (State v inf)
     checkEval i t =
       check int state i t
         (\ (y, v) -> do
+                       -- FIXME limited space thing?
                        --  ugly, but we have limited space in the paper
                        --  usually, you'd want to have the bound identifier *and*
                        --  the result of evaluation
@@ -178,7 +207,7 @@ check int state@(inter, out, ve, te) i t kp k =
                   case x of
                     Nothing  ->
                       do
-                        --  putStrLn "type error"
+                        --  putStrLn "type error" -- FIXME old?
                         return state
                     Just y   ->
                       do
@@ -186,11 +215,8 @@ check int state@(inter, out, ve, te) i t kp k =
                         kp (y, v)
                         return (k (y, v))
 
-
-
-
+-- FIXME wherefore this it? (it's used at checkEval function)
 it = "it"
 
 process :: String -> String
 process = unlines . map (\ x -> "< " ++ x) . lines
-
