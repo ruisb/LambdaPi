@@ -1,0 +1,8 @@
+TODO
+
+> decide type of DataElim
+> accordingly update functions iSubst, iEval, neutralQuote, iType
+> data and constructors representation / context
+> type checking
+
+
