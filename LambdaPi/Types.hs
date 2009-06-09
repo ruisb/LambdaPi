@@ -33,7 +33,7 @@ data ITerm
                                       -- 'de Bruijn indice'.
    |  Free Name                       -- A variabele that isn't bound.
    |  ITerm :$: CTerm                 -- Function application.
-   |  Data     DataTypeName [CTerm]
+   |  DataApp  DataTypeName [CTerm]
    |  DataElim DataTypeName [CTerm]
    -- Natural numbers
    |  Nat                             -- The Natural number type.
@@ -75,6 +75,7 @@ data Value
    |  VStar                              -- The type of types
    |  VPi String Value (Value -> Value)  -- Dependent function space
    |  VNeutral Neutral                   -- Neutral term
+   |  VDataApp DataTypeName [Value]
    |  VDataCons ConsName [Value]
 -- Natural number values in peano style.
    |  VNat
@@ -106,3 +107,6 @@ data Neutral
    |  NFinElim Value Value Value Value Neutral
 
 type Env = [Value]
+
+type DataTypeName = String
+type ConsName = String

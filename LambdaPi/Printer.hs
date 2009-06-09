@@ -54,7 +54,7 @@ iPrintM p x = case x of
   Free s          -> textM s
   i :$: c         -> mparensIf (p > 2)
                      (msep [iPrintM 2 i, mnest 2 (cPrintM 3 c)])
-  Data did args     -> iPrintM p  (foldl (:$:) (Free did) args)
+  DataApp did args     -> iPrintM p  (foldl (:$:) (Free did) args)
   DataElim did args -> iPrintM p  (foldl (:$:) (Free (did++"Elim")) args)
   Nat             -> textM "Nat"
   NatElim m z s n -> iPrintM p (Free "natElim" :$: m :$: z :$: s :$: n)

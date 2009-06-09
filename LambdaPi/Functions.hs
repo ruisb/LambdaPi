@@ -44,8 +44,8 @@ iEval x d@(ne, e) = case x of
                                     Just v  -> v 
   Bound  ii                  -> e !! ii
   i :$: c                    -> vapp (iEval i d) (cEval c d)
-  Data did args              -> VData did (map (`cEval`d) args)
-  DataElim -> 
+  DataApp did args              -> VDataApp did (map (`cEval`d) args)
+  DataElim _ _ ->  undefined
 --   where 
 --      mtsVal = map (`cEval` d) mts
 --      rec (VDataCons cid vargs) =     
@@ -99,7 +99,7 @@ iSubst ii r  (Pi vn ty ty') = Pi vn (cSubst ii r ty) (cSubst (ii + 1) r ty')
 iSubst ii i' (Bound j)      = if ii == j then i' else Bound j
 iSubst ii i' (Free y)       = Free y
 iSubst ii i' (i :$: c)      = iSubst ii i' i :$: cSubst ii i' c
-iSubst ii r (Data did args) = Data did (map (cSubst ii r) args)
+iSubst ii r (DataApp did args) = DataApp did (map (cSubst ii r) args)
 --iSubst ii r (DataElim did ...
 -- for hardcoded datatypes
 iSubst ii r  Nat            = Nat
@@ -151,7 +151,7 @@ quote ii x = case x of
   VPi vn v f     -> Inf (Pi vn (quote ii v) (quote (ii + 1)
                                (f (vquote ii))))
   VNeutral n     -> Inf (neutralQuote ii n)
-  VData did argVals  -> Inf$ Data did (map (quote ii) argVals)
+  VDataApp did argVals  -> Inf$ DataApp did (map (quote ii) argVals)
   VDataCons cid argVals -> DataCons cid (map (quote ii) argVals)
   -- for hardcoded datatypes
   VNat           -> Inf Nat
@@ -300,7 +300,7 @@ cType g (Inf e) v
 cType g (Lam vn e) ( VPi vnt ty ty')
   =    cType  ((\(d, g) -> (d, (vn, ty) : g)) g)
               (cSubst 0 (Free vn) e) (ty' (vfree vn))
-cType g (DataCons did argsC) (VData did' argsT) | did == did'
+cType g (DataCons did argsC) (VDataApp did' argsT) | did == did'
   = do throwError "not supporting data types yet"
 -- FIXME PROBLEM: one of these is vnt?
 -- FIXME boilerplate code?
