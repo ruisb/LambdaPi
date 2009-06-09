@@ -20,15 +20,16 @@ vquote = VNeutral . NQuote
 -- Evaluate a checkable term.
 cEval :: CTerm -> (NameEnv Value,Env) -> Value
 cEval x d = case x of
-  Inf  ii       -> iEval ii d
-  Lam vn c      -> VLam vn (\ x -> cEval c (((\(e, d) -> (e,  (x : d))) d)))
-  Zero          -> VZero
-  Succ k        -> VSucc  (cEval k d)
-  Nil a         -> VNil   (cEval a d)
-  Cons a n x xs -> VCons  (cEval a d) (cEval n d) (cEval x d) (cEval xs d)
-  Refl a x      -> VRefl  (cEval a d) (cEval x d)
-  FZero n       -> VFZero (cEval n d)
-  FSucc n f     -> VFSucc (cEval n d) (cEval f d)
+  Inf  ii           -> iEval ii d
+  Lam vn c          -> VLam vn (\ x -> cEval c (((\(e, d) -> (e,  (x : d))) d)))
+  DataCons cid args -> VDataCons cid (map (`cEval`d) args)
+  Zero              -> VZero
+  Succ k            -> VSucc  (cEval k d)
+  Nil a             -> VNil   (cEval a d)
+  Cons a n x xs     -> VCons  (cEval a d) (cEval n d) (cEval x d) (cEval xs d)
+  Refl a x          -> VRefl  (cEval a d) (cEval x d)
+  FZero n           -> VFZero (cEval n d)
+  FSucc n f         -> VFSucc (cEval n d) (cEval f d)
 
 -- Evaluate an inferable term.
 iEval :: ITerm -> (NameEnv Value, Env) -> Value
@@ -42,6 +43,14 @@ iEval x d = case x of
                                     Just v -> v 
   Bound  ii                  -> (snd d) !! ii
   i :$: c                    -> vapp (iEval i d) (cEval c d)
+  Data did args              -> VData did (map (`cEval`d) args)
+  DataElim -> 
+--   where 
+--      mtsVal = map (`cEval` d) mts
+--      rec (VDataCons cid vargs) =     
+--      rec parVal (VNeutral n)   = VNeutral$ NDataElim did (map (cEval d) par) (cEval mot d) mtsVal n
+--      rec _                     =  error "internal: eval dataElim"
+  ------
   Nat                        -> VNat
   NatElim m mz ms n          -> rec (cEval n d)
     where
@@ -88,6 +97,8 @@ iSubst ii r  (Pi vn ty ty') = Pi vn (cSubst ii r ty) (cSubst (ii + 1) r ty')
 iSubst ii i' (Bound j)      = if ii == j then i' else Bound j
 iSubst ii i' (Free y)       = Free y
 iSubst ii i' (i :$: c)      = iSubst ii i' i :$: cSubst ii i' c
+iSubst ii r (Data did args) = Data did (map (cSubst ii r) args)
+--iSubst ii r (DataElim did ...
 iSubst ii r  Nat            = Nat
 iSubst ii r  (NatElim m mz ms n)
   = NatElim (cSubst ii r m)
@@ -115,6 +126,7 @@ cSubst :: Int -> ITerm -> CTerm -> CTerm
 cSubst ii i' (Inf i)     = Inf (iSubst ii i' i)
 cSubst ii i' (Lam vn c)  = Lam vn (cSubst (ii + 1) i' c)
 -- PROBLEM:CAPTURE?
+cSubst ii r (DataCons cid args) = DataCons cid (map (cSubst ii r) args)
 
 cSubst ii r  Zero        = Zero
 cSubst ii r  (Succ n)    = Succ (cSubst ii r n)
@@ -136,6 +148,8 @@ quote ii x = case x of
   VPi vn v f     -> Inf (Pi vn (quote ii v) (quote (ii + 1)
                                (f (vquote ii))))
   VNeutral n     -> Inf (neutralQuote ii n)
+  VData did argVals  -> Inf$ Data did (map (quote ii) argVals)
+  VDataCons cid argVals -> DataCons cid (map (quote ii) argVals)
   VNat           -> Inf Nat
   VZero          -> Zero
   VSucc n        -> Succ (quote ii n)
@@ -207,7 +221,8 @@ iType g (e1 :$: e2)
           VPi _ ty ty' -> do cType g e2 ty
                              return ( ty' (cEval e2 (fst g, [])))
           _            ->  throwError "illegal application"
-
+--iType g (Data did args) = do zipM_ (cType g) args (type of arguments of the data type)
+--                            return VStar
 iType g Nat                  = return VStar
 iType g (NatElim m mz ms n)
   = do cType g m (VPi "pix" VNat (const VStar))
@@ -279,6 +294,8 @@ cType g (Inf e) v
 cType g (Lam vn e) ( VPi vnt ty ty')
   =    cType  ((\(d, g) -> (d, (vn, ty) : g)) g)
               (cSubst 0 (Free vn) e) (ty' (vfree vn))
+cType g (DataCons did argsC) (VData did' argsT) | did == did'
+  = do throwError "not supporting data types yet"
 -- FIXME PROBLEM: one of these is vnt?
 -- FIXME boilerplate code?
 cType g Zero      VNat              = return ()

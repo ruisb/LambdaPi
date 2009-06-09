@@ -9,6 +9,8 @@ import Interpreter.Types
 data CTerm
    =  Inf  ITerm
    |  Lam  String CTerm           -- A lambda expression
+   -- constructors
+   |  DataCons ConsName [CTerm]
    -- The Nat constructors.
    |  Zero                        -- 0
    |  Succ CTerm                  -- +1
@@ -31,6 +33,8 @@ data ITerm
                                       -- 'de Bruijn indice'.
    |  Free Name                       -- A variabele that isn't bound.
    |  ITerm :$: CTerm                 -- Function application.
+   |  Data     DataTypeName [CTerm]
+   |  DataElim DataTypeName [CTerm]
    -- Natural numbers
    |  Nat                             -- The Natural number type.
    |  NatElim CTerm CTerm CTerm CTerm -- The Natural number type eliminator.
@@ -46,12 +50,6 @@ data ITerm
   deriving (Show{--, Eq--})
 
 
-
--- FIXME more nicer way.
--- we can fix this with
---   type PiName = String
---   instance Eq PiName where
--- So we need only one case, but we need than the TypeSynonymInstances extension
 
 instance Eq ITerm where
   Ann x y == Ann x' y' = x==x' && y==y'
@@ -77,6 +75,7 @@ data Value
    |  VStar                              -- The type of types
    |  VPi String Value (Value -> Value)  -- Dependent function space
    |  VNeutral Neutral                   -- Neutral term
+   |  VDataCons ConsName [Value]
 -- Natural number values in peano style.
    |  VNat
    |  VZero
@@ -99,7 +98,7 @@ data Neutral
    =  NFree  Name   -- Variable
    |  NQuote Int
    |  NApp  Neutral Value  -- An application of a neutral term to a value.
-   
+   |  NDataElim DataTypeName [Value]
 -- Eliminator for neutral terms, to avoid the eval get stuck.
    |  NNatElim Value Value Value Neutral
    |  NVecElim Value Value Value Value Value Neutral

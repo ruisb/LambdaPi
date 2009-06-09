@@ -33,6 +33,8 @@ iPrint' p ctx x = case x of
   Free s          -> text s
   i :$: c         -> parensIf (p > 2)
                      (sep [iPrint' 2 ctx i, nest 2 (cPrint' 3 ctx c)])
+  Data did args     -> iPrint' p ctx (foldl (:$:) (Free did) args)
+  DataElim did args -> iPrint' p ctx (foldl (:$:) (Free (did++"Elim")) args)
   Nat             -> text "Nat"
   NatElim m z s n -> iPrint' p ctx (Free "natElim" :$: m :$: z :$: s :$: n)
   Vec a n         -> iPrint' p ctx (Free "Vec" :$: a :$: n)
@@ -54,6 +56,7 @@ cPrint' p ctx x = case x of
    Inf i         -> iPrint' p ctx i
    Lam vn c      -> parensIf (p > 0) $
                     text "\\ " <> text vn <> text " -> " <> cPrint' 0 (vn:ctx) c
+   DataCons cid args -> iPrint' p ctx (foldl (:$:) (Free cid) args)
    Zero          -> fromNat ctx Zero
    Succ n        -> fromNat ctx (Succ n)
    Nil a         -> iPrint' p ctx (Free "Nil" :$: a)
