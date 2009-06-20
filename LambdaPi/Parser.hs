@@ -37,7 +37,7 @@ parseStmt e =
         t <- parseCTerm 0 e -- FIXME this ok?
         reserved lambdaPi "where"
         ctors <- parseDataCtors e
-        return (Data name t ctors)
+        return (DataDecl (DataInfo name t ctors))
   <|>
       do
         reserved lambdaPi "let"

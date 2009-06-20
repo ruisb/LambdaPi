@@ -6,6 +6,8 @@ import LambdaPi.Functions
 import LambdaPi.Parser
 import LambdaPi.Printer
 
+import Control.Monad
+
 -- The LambdaPi Interpreter
 lp :: Interpreter ITerm CTerm Value Value CTerm Value
 lp = I { iname = "lambda-Pi",
@@ -18,7 +20,8 @@ lp = I { iname = "lambda-Pi",
          itprint = cPrint . quote0,
          iiparse = parseITerm 0 [],
          isparse = parseStmt [],
-         iassume = \s (x, t) -> lpassume s x t }
+         iassume = \s (x, t) -> lpassume s x t, 
+         iprcdata = \dt (a,b,cv,ct)-> liftM (\(cv',ct')->(a,b,cv',ct')) $ prc_data dt (cv,ct)}
 
 -- FIXME the VPi 'random' strings.
 -- LambdaPi Type environment

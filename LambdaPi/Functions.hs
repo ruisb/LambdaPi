@@ -3,7 +3,9 @@ import Interpreter.Types
 import LambdaPi.Types
 import LambdaPi.Printer
 
+import qualified Data.Map as M
 import Control.Monad.Error
+import Control.Arrow
 import Text.PrettyPrint.HughesPJ hiding (parens)
 
 vapp :: Value -> Value -> Value
@@ -293,9 +295,9 @@ cType g (Inf e) v
   = do v' <- iType g e
        unless ( quote0 v == quote0 v') (throwError ("type mismatch:\n"
                                         ++ "type inferred:  "
-                                        ++ render (cPrint (quote0 v'))
+                                        ++ render (cPrint (quote0 v')) ++ "   sic:"++show (quote0 v')
                                         ++ "\n" ++ "type expected:  "
-                                        ++ render (cPrint (quote0 v))
+                                        ++ render (cPrint (quote0 v)) ++ "   sic:"++show (quote0 v)
                                         ++ "\n" ++ "for expression: " 
                                         ++ render (iPrint e)))
 cType g (Lam vn e) ( VPi vnt ty ty')
@@ -334,3 +336,62 @@ cType g (DataCons did argsC) (VTypeCons did' argsT) | did == did'
 -----                (throwError "type mismatch")
 cType g _ _
   = throwError "type mismatch"
+
+
+prc_data :: DataInfo CTerm -> (NameEnv Value, Ctx Value) -> IO (NameEnv Value, Ctx Value)
+prc_data dtinf (venv,tenv) = do b <- checkdatavalid dtinf
+                                if b 
+                                 then return (add_data dtinf (venv,tenv))
+                                 else return (venv,tenv) 
+  where checkdatavalid :: DataInfo CTerm -> IO Bool
+        checkdatavalid (DataInfo nm ty ctors) = let (tyargs,tyres) = unprefix ty
+                                                in if tyres /= Inf Star 
+                                                    then putStrLn "data definition not defining a type" >> return False
+                                                    else if (not . and . map ((==Free nm).fst.unapp.unInf.snd.unprefix) . M.elems) ctors
+                                                          then putStrLn "constructor does not result in the correct data type" >> return False
+                                                          else return True
+        add_data :: DataInfo CTerm -> (NameEnv Value, Ctx Value) -> (NameEnv Value, Ctx Value)
+        add_data (DataInfo nm ty ctrs) (venv,tenv) = 
+	                                let vars = map (\x->[x]) ['a'..'z'] ++ map (('t':).show) [0..]
+					    rename  (v:vs) ("_":xs) = v : rename vs xs 
+					    rename  vs     (x:xs)   = x : rename vs xs
+					    rename  vs     []       = []
+	                                    --type constructor
+					    (tyargs,tyres) = unprefix ty 
+	                                    tyconsty       = (nm,cEval ty (venv,[]))
+				            tyconsval      = (nm, vabstract (rename vars . map fst $ tyargs) (VTypeCons nm))
+					    --data constructors
+					    ctors          = M.toList ctrs
+					    dataconstys    = map (\(nm,ty)->(nm, cEval ty (tyconsval:venv,[]))) ctors 
+					    dataconsvals   = map (\(nm,ty)->(nm, vabstract (rename vars. map fst . fst . unprefix $ ty) (VDataCons nm))) ctors
+					    -- eliminator
+					    enm            = nm ++ "Elim"
+					    elimty         = (enm, undefined)
+					    elimval        = (enm, undefined)
+				        in (elimval:dataconsvals ++ tyconsval:venv, elimty:dataconstys ++ tyconsty:tenv)
+                                              
+                                         
+
+unInf (Inf t) = t
+
+app :: ITerm -> [CTerm] -> ITerm
+app = foldl (:$:) 
+
+unapp :: ITerm -> (ITerm,[CTerm])
+unapp (f :$: x) = (id *** snoc x) (unapp f)
+  where snoc x = (++ [x])
+unapp g = (g,[])
+
+
+vabstract :: [String] -> ([Value] -> Value) -> Value
+vabstract ns f = vabstract' ns f []
+  where vabstract' (n:ns) f acc = VLam n (\x->vabstract' ns f (acc++[x])) 
+        vabstract' []     f acc = f acc 
+
+prefix :: [(String,CTerm)] -> CTerm -> CTerm
+prefix as r = foldr (\(x,a) b -> Inf $ Pi x a b) r as
+
+unprefix :: CTerm -> ([(String,CTerm)],CTerm) 
+unprefix (Inf (Pi x a b)) = ( ((x,a):) *** id) (unprefix b) 
+unprefix x                = ([],x)
+

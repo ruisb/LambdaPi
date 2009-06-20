@@ -153,7 +153,8 @@ data Interpreter i c v t tinf inf =
       itprint :: t -> Doc,
       iiparse :: CharParser () i,
       isparse :: CharParser () (Stmt i tinf),
-      iassume :: State v inf -> (String, tinf) -> IO (State v inf) }
+      iassume :: State v inf -> (String, tinf) -> IO (State v inf),
+      iprcdata :: DataInfo tinf -> State v inf -> IO (State v inf) }
 
 iinfer int d g t =
   case iitype int d g t of
@@ -171,13 +172,13 @@ handleStmt int state@(inter, out, ve, te) stmt =
         Eval e     -> checkEval it e
         PutStrLn x -> putStrLn x >> return state
         Out f      -> return (inter, f, ve, te)
-        DataDecl datainfo -> trace ( "found Data with:: name:" ++ name
+        DataDecl datainfo -> trace ( "found Data with:: name:" ++ name datainfo
          -- ++ " ,type: "     ++ printI t
          -- ++ " ,mappings:"  ++ (Map.showTreeWith (\k a -> show k ++ "[" ++ printI a ++ "]," ) True True m)) -- FIXME remove trace
-          ++ "#mappings: " ++ (show $ Map.size m))
+          ++ "#mappings: " ++ (show . Map.size . ctors $datainfo))
          -- (return ((name, t) : te)) -- add to typing env.
          --(return (inter, out, ve, (name, (iitype int) ve te t ) : te))
-           $ if undefined --ivaliddata datainfo then undefined else undefined
+           $ iprcdata int datainfo state
         -- FIXME
     where
     --FIXME temp
