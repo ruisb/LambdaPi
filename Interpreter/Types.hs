@@ -17,6 +17,6 @@ data Stmt i tinf = Let String i           --  let x = t
                  | Eval i
                  | PutStrLn String        --  lhs2TeX hacking, allow to print "magic" string
                  | Out String             --  more lhs2TeX hacking, allow to print to files
-                 | Data String tinf (Map String tinf) -- Data <datatype name> <datatype dependent space>
+                 | DataDecl String tinf (Map String tinf) -- Data <datatype name> <datatype dependent space>
                                                    -- mapping: Ctor-name -> type.
   deriving (Show)

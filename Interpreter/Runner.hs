@@ -171,13 +171,13 @@ handleStmt int state@(inter, out, ve, te) stmt =
         Eval e     -> checkEval it e
         PutStrLn x -> putStrLn x >> return state
         Out f      -> return (inter, f, ve, te)
-        Data name t m -> trace ( "found Data with:: name:" ++ name
+        DataDecl datainfo -> trace ( "found Data with:: name:" ++ name
          -- ++ " ,type: "     ++ printI t
          -- ++ " ,mappings:"  ++ (Map.showTreeWith (\k a -> show k ++ "[" ++ printI a ++ "]," ) True True m)) -- FIXME remove trace
           ++ "#mappings: " ++ (show $ Map.size m))
          -- (return ((name, t) : te)) -- add to typing env.
          --(return (inter, out, ve, (name, (iitype int) ve te t ) : te))
-           $ (iassume int) state (name, t)
+           $ if undefined --ivaliddata datainfo then undefined else undefined
         -- FIXME
     where
     --FIXME temp

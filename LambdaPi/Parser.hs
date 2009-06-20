@@ -140,9 +140,9 @@ parseITerm 3 e =
       do
         reserved lambdaPi "*"
         return Star
-  <|> do
-        n <- natural lambdaPi
-        return (toNat n)
+--  <|> do
+--        n <- natural lambdaPi
+--        return (toNat n)
   <|> do
         x <- identifier lambdaPi
         case findIndex (== x) e of
@@ -168,12 +168,12 @@ parseLam e =
          --CHANGED return (iterate Lam t !! length xs)
          return (foldr ($) t (map Lam xs)) 
 
-toNat :: Integer -> ITerm
-toNat n = Ann (toNat' n) (Inf Nat)
-  where
-  toNat' :: Integer -> CTerm
-  toNat' 0  =  Zero
-  toNat' n  =  Succ (toNat' (n - 1))
+--toNat :: Integer -> ITerm
+--toNat n = Ann (toNat' n) (Inf Nat)
+--  where
+--  toNat' :: Integer -> CTerm
+--  toNat' 0  =  Zero
+--  toNat' n  =  Succ (toNat' (n - 1))
 
 
 parseIO :: String -> CharParser () a -> String -> IO (Maybe a)

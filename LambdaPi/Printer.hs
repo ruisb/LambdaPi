@@ -54,22 +54,22 @@ iPrintM p x = case x of
   Free s          -> textM s
   i :$: c         -> mparensIf (p > 2)
                      (msep [iPrintM 2 i, mnest 2 (cPrintM 3 c)])
-  DataApp did args     -> iPrintM p  (foldl (:$:) (Free did) args)
-  DataElim did args -> iPrintM p  (foldl (:$:) (Free (did++"Elim")) args)
-  Nat             -> textM "Nat"
-  NatElim m z s n -> iPrintM p (Free "natElim" :$: m :$: z :$: s :$: n)
-  Vec a n         -> iPrintM p (Free "Vec" :$: a :$: n)
-  VecElim a m mn mc n xs
-                  -> iPrintM p
-                     (Free "vecElim" :$: a :$: m :$: mn :$: mc :$: n :$: xs)
-  Eq a x y        -> iPrintM p (Free "Eq" :$: a :$: x :$: y)
-  EqElim a m mr x y eq
-                  -> iPrintM p 
-                     (Free "eqElim" :$: a :$: m :$: mr :$: x :$: y :$: eq)
-  Fin n           -> iPrintM p (Free "Fin" :$: n)
-  FinElim m mz ms n f
-                  ->  iPrintM p 
-                      (Free "finElim" :$: m :$: mz :$: ms :$: n :$: f)
+  TypeCons did args -> iPrintM p  (foldl (:$:) (Free did) args)
+  DataElim did mot met ts t -> iPrintM p  (foldl (:$:) (Free (did++"Elim")) ([mot]++met++ts++[t]))
+--  Nat             -> textM "Nat"
+--  NatElim m z s n -> iPrintM p (Free "natElim" :$: m :$: z :$: s :$: n)
+--  Vec a n         -> iPrintM p (Free "Vec" :$: a :$: n)
+--  VecElim a m mn mc n xs
+--                  -> iPrintM p
+--                     (Free "vecElim" :$: a :$: m :$: mn :$: mc :$: n :$: xs)
+--  Eq a x y        -> iPrintM p (Free "Eq" :$: a :$: x :$: y)
+--  EqElim a m mr x y eq
+--                  -> iPrintM p 
+--                     (Free "eqElim" :$: a :$: m :$: mr :$: x :$: y :$: eq)
+--  Fin n           -> iPrintM p (Free "Fin" :$: n)
+--  FinElim m mz ms n f
+--                  ->  iPrintM p 
+--                      (Free "finElim" :$: m :$: mz :$: ms :$: n :$: f)
 
 
 cPrintM :: Int -> CTerm -> Reader [String] Doc
@@ -79,13 +79,13 @@ cPrintM p  x = case x of
                                         <> textM " -> "
                                         <> (local (\x -> vn:x) $ cPrintM 0 c)
    DataCons cid args -> iPrintM p  (foldl (:$:) (Free cid) args)
-   Zero          -> fromNat 0 Zero
-   Succ n        -> fromNat 0 (Succ n)
-   Nil a         -> iPrintM p (Free "Nil"   :$: a)
-   Cons a n x xs -> iPrintM p (Free "Cons"  :$: a :$: n :$: x :$: xs)
-   Refl a x      -> iPrintM p (Free "Refl"  :$: a :$: x)
-   FZero n       -> iPrintM p (Free "FZero" :$: n)
-   FSucc n f     -> iPrintM p (Free "FSucc" :$: n :$: f)
+--   Zero          -> fromNat 0 Zero
+--   Succ n        -> fromNat 0 (Succ n)
+--   Nil a         -> iPrintM p (Free "Nil"   :$: a)
+--   Cons a n x xs -> iPrintM p (Free "Cons"  :$: a :$: n :$: x :$: xs)
+--   Refl a x      -> iPrintM p (Free "Refl"  :$: a :$: x)
+--   FZero n       -> iPrintM p (Free "FZero" :$: n)
+--   FSucc n f     -> iPrintM p (Free "FSucc" :$: n :$: f)
 
 
 
@@ -93,10 +93,10 @@ parensIf :: Bool -> Doc -> Doc
 parensIf True  = PP.parens
 parensIf False = id
 
-fromNat :: Int -> CTerm -> Reader [String] Doc
-fromNat n Zero     = intM n
-fromNat n (Succ k) = fromNat (n + 1) k
-fromNat n t        = mparensIf True (intM n <> textM " + " <> cPrintM 0 t)
+--fromNat :: Int -> CTerm -> Reader [String] Doc
+--fromNat n Zero     = intM n
+--fromNat n (Succ k) = fromNat (n + 1) k
+--fromNat n t        = mparensIf True (intM n <> textM " + " <> cPrintM 0 t)
 
 nestedForall :: Int -> [(Int, String, CTerm)] -> CTerm -> Reader [String] Doc
 nestedForall ii ds (Inf (Pi vn d r)) = local (\x -> vn:x) $
