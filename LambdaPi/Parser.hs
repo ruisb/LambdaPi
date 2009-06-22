@@ -1,10 +1,9 @@
 module LambdaPi.Parser where
 import LambdaPi.Types
+import LambdaPi.Functions
 import Interpreter.Types
 
 import Data.List
-import Data.Map (Map)
-import qualified Data.Map as Map
 
 -- parser imports
 import Text.ParserCombinators.Parsec hiding (parse, State)
@@ -60,7 +59,7 @@ parseStmt e =
   <|> fmap Eval (parseITerm 0 e)
 
 -- Parse the constructors of a data type.
-parseDataCtors :: [String] -> CharParser () (Map String CTerm)
+parseDataCtors :: [String] -> CharParser () [(String,CTerm)]
 parseDataCtors e
   = 
     do
@@ -72,7 +71,7 @@ parseDataCtors e
              
              return (name, t))
              (reserved lambdaPi ",") --FIXME temp with , seperated
-       return (Map.fromList m)
+       return m
        
       
       
@@ -140,9 +139,9 @@ parseITerm 3 e =
       do
         reserved lambdaPi "*"
         return Star
---  <|> do
---        n <- natural lambdaPi
---        return (toNat n)
+  <|> do
+        n <- natural lambdaPi
+        return (toNat n)
   <|> do
         x <- identifier lambdaPi
         case findIndex (== x) e of
@@ -168,12 +167,9 @@ parseLam e =
          --CHANGED return (iterate Lam t !! length xs)
          return (foldr ($) t (map Lam xs)) 
 
---toNat :: Integer -> ITerm
---toNat n = Ann (toNat' n) (Inf Nat)
---  where
---  toNat' :: Integer -> CTerm
---  toNat' 0  =  Zero
---  toNat' n  =  Succ (toNat' (n - 1))
+toNat :: Integer -> ITerm
+toNat 0  =  Free zeronm
+toNat n  =  Free succnm :$: Inf (toNat (n - 1))
 
 
 parseIO :: String -> CharParser () a -> String -> IO (Maybe a)

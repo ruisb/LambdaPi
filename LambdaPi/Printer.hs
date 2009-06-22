@@ -8,11 +8,14 @@ import Prelude hiding (print)
 import Text.PrettyPrint.HughesPJ (Doc)
 import qualified Text.PrettyPrint.HughesPJ as PP (parens, int, sep, text, nest, (<>))
 
+
 -- Monad versions of the used functions
 -- Try to keep naming conventions:
 -- http://haskell.org/ghc/docs/latest/html/libraries/base/Control-Monad.html#3
 infixl 6 <>
 (<>) = liftM2 (PP.<>)
+
+
 
 textM :: String -> Reader [String] Doc
 textM = return . PP.text
@@ -37,25 +40,28 @@ cPrint ::  CTerm -> Doc
 cPrint t = runReader (cPrintM 0 t) []
 
 iPrintM :: Int -> ITerm -> Reader [String] Doc
+iPrintM p x | isNat x = (textM . show . fromNat) x
 iPrintM p x = case x of
   Ann c ty        -> mparensIf (p > 1) (cPrintM 2 c <> textM " :: " <> cPrintM 0 ty)
   Star            -> textM "*"
 
-  Pi vn d (Inf (Pi vn' d' r))
+  Pi "_" d r       -> mparensIf (p > 0) (msep [cPrintM 0 d
+                                       <> textM " -> ", local (\x->"_":x) (cPrintM 0 r)])
+  Pi vn d (Inf (Pi vn' d' r)) | vn' /= "_"
                   -> local (\x -> vn':vn:x) $
                       mparensIf (p > 0) (nestedForall 2  [(1,vn', d'), (0,vn, d)] r)
 
   Pi vn d r       -> mparensIf (p > 0) (msep [textM "forall " <> textM vn
                                        <> textM " :: " <> cPrintM 0 d
-                                       <> textM " .", (local (\x -> vn:x) $ cPrintM 0 r)])
+                                       <> textM " .", local (\x -> vn:x) (cPrintM 0 r)])
   Bound k         -> do
                        xs <- ask
-                       textM (xs !! k)
+                       textM (xs !! k) --(!!!!) ("IT WAS HERE WHEN PRINTING BOUND " ++ show k ++"IN CONTEXT"++show xs)xs k)
   Free s          -> textM s
   i :$: c         -> mparensIf (p > 2)
-                     (msep [iPrintM 2 i, mnest 2 (cPrintM 3 c)])
-  TypeCons did args -> iPrintM p  (foldl (:$:) (Free did) args)
-  DataElim did mot met ts t -> iPrintM p  (foldl (:$:) (Free (did++"Elim")) ([mot]++met++ts++[t]))
+                      (msep [iPrintM 2 i, mnest 2 (cPrintM 3 c)])
+  --HERE: TypeCons did args -> iPrintM p  (foldl (:$:) (Free did) args)
+  DataElim did mot met ts t -> iPrintM p  (foldl (:$:) (Free (name did++"Elim")) ([mot]++met++ts++[t]))
 --  Nat             -> textM "Nat"
 --  NatElim m z s n -> iPrintM p (Free "natElim" :$: m :$: z :$: s :$: n)
 --  Vec a n         -> iPrintM p (Free "Vec" :$: a :$: n)
@@ -78,7 +84,7 @@ cPrintM p  x = case x of
    Lam vn c      -> mparensIf (p > 0) $ textM "\\ " <> textM vn
                                         <> textM " -> "
                                         <> (local (\x -> vn:x) $ cPrintM 0 c)
-   DataCons cid args -> iPrintM p  (foldl (:$:) (Free cid) args)
+   --HERE: DataCons cid args -> iPrintM p  (foldl (:$:) (Free cid) args)
 --   Zero          -> fromNat 0 Zero
 --   Succ n        -> fromNat 0 (Succ n)
 --   Nil a         -> iPrintM p (Free "Nil"   :$: a)
@@ -93,14 +99,21 @@ parensIf :: Bool -> Doc -> Doc
 parensIf True  = PP.parens
 parensIf False = id
 
+isNat :: ITerm -> Bool
+isNat (Free z)          | z==zeronm   = True
+isNat (Free s :$: Inf n)| s==succnm   = isNat n 
+isNat _                               = False
+
+fromNat (Free z)          | z==zeronm   = 0
+fromNat (Free s :$: Inf n)| s==succnm   = 1 + fromNat n
 --fromNat :: Int -> CTerm -> Reader [String] Doc
 --fromNat n Zero     = intM n
 --fromNat n (Succ k) = fromNat (n + 1) k
 --fromNat n t        = mparensIf True (intM n <> textM " + " <> cPrintM 0 t)
 
 nestedForall :: Int -> [(Int, String, CTerm)] -> CTerm -> Reader [String] Doc
-nestedForall ii ds (Inf (Pi vn d r)) = local (\x -> vn:x) $
-                                        nestedForall (ii+1) ((ii,vn, d) : ds) r
+nestedForall ii ds (Inf (Pi vn d r))| vn/="_" = local (\x -> vn:x) $
+                                                nestedForall (ii+1) ((ii,vn, d) : ds) r
 nestedForall _  ds x
   = msep [textM "forall "
          <> msep [mparensIf True (textM vn <> textM " :: "

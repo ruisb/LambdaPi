@@ -21,8 +21,8 @@ data Stmt i tinf = Let String i           --  let x = t
   deriving (Show)
 
 
-data DataInfo tinf = DataInfo {name :: String, sig :: tinf, ctors :: Map String tinf} 
-   deriving Show
+data DataInfo tinf = DataInfo {name :: String, sig :: tinf, ctors :: [(String,tinf)]} 
+   deriving (Eq,Show)
                                                    -- Data <datatype name> <datatype dependent space>
                                                    -- mapping: Ctor-name -> type.
 

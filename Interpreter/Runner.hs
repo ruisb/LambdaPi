@@ -154,7 +154,7 @@ data Interpreter i c v t tinf inf =
       iiparse :: CharParser () i,
       isparse :: CharParser () (Stmt i tinf),
       iassume :: State v inf -> (String, tinf) -> IO (State v inf),
-      iprcdata :: DataInfo tinf -> State v inf -> IO (State v inf) }
+      iprcdata :: DataInfo tinf -> State v inf -> Result (State v inf) }
 
 iinfer int d g t =
   case iitype int d g t of
@@ -172,18 +172,20 @@ handleStmt int state@(inter, out, ve, te) stmt =
         Eval e     -> checkEval it e
         PutStrLn x -> putStrLn x >> return state
         Out f      -> return (inter, f, ve, te)
-        DataDecl datainfo -> trace ( "found Data with:: name:" ++ name datainfo
+        DataDecl datainfo -> trace ( "found Datatype " ++ name datainfo ++ " with "
          -- ++ " ,type: "     ++ printI t
          -- ++ " ,mappings:"  ++ (Map.showTreeWith (\k a -> show k ++ "[" ++ printI a ++ "]," ) True True m)) -- FIXME remove trace
-          ++ "#mappings: " ++ (show . Map.size . ctors $datainfo))
+          ++ (show . length . ctors $datainfo) ++ " constructors.")
          -- (return ((name, t) : te)) -- add to typing env.
          --(return (inter, out, ve, (name, (iitype int) ve te t ) : te))
-           $ iprcdata int datainfo state
+           $ reportresult state $ iprcdata int datainfo state
         -- FIXME
     where
     --FIXME temp
     printI = PP.render . icprint int . iquote int . (ieval int) ve
-    
+    reportresult :: a -> Result a -> IO a 
+    reportresult x (Left  err) = putStrLn ("error: \n" ++ err) >> return x
+    reportresult _ (Right res) = return res
     
     --  checkEval :: String -> i -> IO (State v inf)
     checkEval i t =

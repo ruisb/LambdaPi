@@ -1,6 +1,9 @@
 module LambdaPi.Types where
 import Interpreter.Types
 
+zeronm = "Zero"
+succnm = "Succ"
+
 --------------------------------------------------------------------------------
 -- The term types and the hardcoded basic types (Nat, Vector, Eq & Fin).
 --------------------------------------------------------------------------------
@@ -10,7 +13,7 @@ data CTerm
    =  Inf  ITerm
    |  Lam  String CTerm           -- A lambda expression
    -- constructors
-   |  DataCons ConsName [CTerm]
+ --HERE  |  DataCons ConsName [CTerm]
 -----   -- The Nat constructors.
 -----   |  Zero                        -- 0
 -----   |  Succ CTerm                  -- +1
@@ -33,8 +36,8 @@ data ITerm
                                       -- 'de Bruijn indice'.
    |  Free Name                       -- A variabele that isn't bound.
    |  ITerm :$: CTerm                 -- Function application.
-   |  TypeCons  DataTypeName [CTerm]
-   |  DataElim DataTypeName -- datatype
+  --HERE |  TypeCons  DataTypeName [CTerm]
+   |  DataElim  (DataInfo CTerm) -- datatype
                 CTerm       -- motive
                 [CTerm]     -- methods
                 [CTerm]     -- targets
@@ -62,7 +65,7 @@ instance Eq ITerm where
   Bound n1 == Bound n2 = n1==n2
   Free n == Free n' = n==n'
   a :$: b == a':$:b' = a==a' && b==b'
-  TypeCons x y == TypeCons x' y' = x==x' && y==y'
+  --HERE TypeCons x y == TypeCons x' y' = x==x' && y==y'
   DataElim a b  c d e == DataElim a' b' c' d' e' = a==a' && b==b' && c==c' && d==d' && e==e'
 -----  Nat == Nat = True
 -----  NatElim a b c d == NatElim a' b' c' d' = a==a' && b==b' && c == c' && d == d'
@@ -105,7 +108,7 @@ data Neutral
    =  NFree  Name   -- Variable
    |  NQuote Int
    |  NApp  Neutral Value  -- An application of a neutral term to a value.
-   |  NDataElim DataTypeName  -- datatype
+   |  NDataElim (DataInfo CTerm)  -- datatype
                 Value         -- motive
                 [Value]       -- methods
                 [Value]       -- targets
