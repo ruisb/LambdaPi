@@ -327,8 +327,11 @@ iType g h = error $ "iType not defined for "++ show h
 -- Type check a checkable term.
 cType :: (NameEnv Value, Context) -> CTerm -> Type -> Result ()
 cType g (Inf e) v 
-  = do v' <- iType g e
-       unless ( quote0 v == quote0 v') (throwError ("type mismatch:\n"
+  = --trace ("type checking Term="++show (Inf e)++ ", Type=" ++show v)$
+    do v' <- iType g e
+      -- trace ("term type is v' = " ++ show v' ++ "against v") $ 
+       unless ( (quote0 . (`cEval` (fst g,[])) . quote0) v == quote0 v') 
+                                       (throwError ("type mismatch:\n"
                                         ++ "type inferred:  "
                                         ++ render (cPrint (quote0 v'))--  ++ "   sic:"++show (quote0 v')
                                         ++ "\n" ++ "type expected:  "
